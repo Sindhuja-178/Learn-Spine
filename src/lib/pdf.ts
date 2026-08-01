@@ -1,11 +1,11 @@
-import { PDFParse } from 'pdf-parse';
-
 /**
  * Extract plain text from a PDF buffer.
  */
 export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
+    const { PDFParse } = await import('pdf-parse');
     const parser = new PDFParse({ data: new Uint8Array(buffer) });
+
     const result = await parser.getText();
     const text = result.text;
 

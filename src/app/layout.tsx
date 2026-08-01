@@ -9,6 +9,9 @@ export const metadata: Metadata = {
   description: "Convert text and YouTube links into simple flowcharts, interactive flashcards, and quizzes using AI.",
 };
 
+export const maxDuration = 60;
+
+
 export default function RootLayout({
   children,
   }: Readonly<{

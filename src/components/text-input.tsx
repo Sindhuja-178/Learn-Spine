@@ -66,8 +66,9 @@ export function TextInput({ onSuccess }: TextInputProps) {
       } else {
         setError(result.error);
       }
-    } catch {
-      setError('An unexpected error occurred. Please try again.');
+    } catch (err: any) {
+      console.error('Document processing error:', err);
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
