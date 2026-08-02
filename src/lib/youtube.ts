@@ -29,7 +29,15 @@ export function extractVideoId(url: string): string | null {
  */
 export async function getYouTubeTranscript(videoId: string): Promise<TranscriptResult> {
   try {
-    const segments = await fetchTranscript(videoId, { lang: 'en' });
+    let segments;
+    try {
+      // Try fetching English transcript first
+      segments = await fetchTranscript(videoId, { lang: 'en' });
+    } catch (enError) {
+      console.warn(`Failed to fetch English transcript for ${videoId}, falling back to default language:`, enError);
+      // Fallback to default available transcript language
+      segments = await fetchTranscript(videoId);
+    }
 
     if (!segments || segments.length === 0) {
       throw new Error('No transcript available for this video. The video may not have captions enabled.');
