@@ -25,6 +25,31 @@ export function extractVideoId(url: string): string | null {
 }
 
 /**
+ * Helper to retry a promise-returning function with exponential backoff.
+ */
+async function fetchWithRetry<T>(
+  fn: () => Promise<T>,
+  retries: number = 3,
+  delay: number = 2000
+): Promise<T> {
+  let lastError: any;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      console.warn(`YouTube fetch attempt ${attempt} failed:`, error);
+      if (attempt < retries) {
+        const backoff = delay * Math.pow(2, attempt - 1);
+        console.log(`Waiting ${backoff}ms before retry...`);
+        await new Promise((resolve) => setTimeout(resolve, backoff));
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
  * Fetch the transcript for a YouTube video and return plain text + estimated duration.
  */
 export async function getYouTubeTranscript(videoId: string): Promise<TranscriptResult> {
@@ -73,13 +98,23 @@ export async function getYouTubeTranscript(videoId: string): Promise<TranscriptR
       transcriptFetch: customFetch
     } : {};
 
+    const retryAttempts = process.env.YOUTUBE_PROXY ? 3 : 1;
+
     try {
       // Try fetching English transcript first
-      segments = (await fetchTranscript(videoId, { ...fetchOptions, lang: 'en' })) as unknown as TranscriptSegment[];
+      segments = await fetchWithRetry(
+        () => fetchTranscript(videoId, { ...fetchOptions, lang: 'en' }) as unknown as Promise<TranscriptSegment[]>,
+        retryAttempts,
+        2000
+      );
     } catch (enError) {
       console.warn(`Failed to fetch English transcript for ${videoId}, falling back to default language:`, enError);
       // Fallback to default available transcript language
-      segments = (await fetchTranscript(videoId, fetchOptions)) as unknown as TranscriptSegment[];
+      segments = await fetchWithRetry(
+        () => fetchTranscript(videoId, fetchOptions) as unknown as Promise<TranscriptSegment[]>,
+        retryAttempts,
+        2000
+      );
     }
 
     if (!segments || segments.length === 0) {
