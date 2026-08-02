@@ -1,4 +1,4 @@
-import { fetchTranscript } from 'youtube-transcript-plus';
+import { fetchTranscript, type TranscriptSegment } from 'youtube-transcript-plus';
 
 export interface TranscriptResult {
   text: string;
@@ -28,15 +28,58 @@ export function extractVideoId(url: string): string | null {
  * Fetch the transcript for a YouTube video and return plain text + estimated duration.
  */
 export async function getYouTubeTranscript(videoId: string): Promise<TranscriptResult> {
+  // Configure proxy dispatcher if YOUTUBE_PROXY environment variable is set
+  let customFetch: any = undefined;
+  
+  if (process.env.YOUTUBE_PROXY) {
+    try {
+      const { ProxyAgent } = await import('undici');
+      const proxyAgent = new ProxyAgent(process.env.YOUTUBE_PROXY);
+      
+      customFetch = async (params: any) => {
+        const { url, lang, userAgent, method = 'GET', body, headers = {} } = params;
+        const fetchHeaders: any = {
+          'User-Agent': userAgent || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          ...headers
+        };
+        if (lang) {
+          fetchHeaders['Accept-Language'] = lang;
+        }
+        
+        const options: any = {
+          method,
+          headers: fetchHeaders,
+          dispatcher: proxyAgent
+        };
+        
+        if (body && method === 'POST') {
+          options.body = body;
+        }
+        
+        return fetch(url, options);
+      };
+      
+      console.log('Using ProxyAgent for YouTube transcript fetch:', process.env.YOUTUBE_PROXY);
+    } catch (proxyError) {
+      console.error('Failed to configure ProxyAgent for YouTube fetch:', proxyError);
+    }
+  }
+
   try {
-    let segments;
+    let segments: TranscriptSegment[];
+    const fetchOptions: any = customFetch ? {
+      videoFetch: customFetch,
+      playerFetch: customFetch,
+      transcriptFetch: customFetch
+    } : {};
+
     try {
       // Try fetching English transcript first
-      segments = await fetchTranscript(videoId, { lang: 'en' });
+      segments = (await fetchTranscript(videoId, { ...fetchOptions, lang: 'en' })) as unknown as TranscriptSegment[];
     } catch (enError) {
       console.warn(`Failed to fetch English transcript for ${videoId}, falling back to default language:`, enError);
       // Fallback to default available transcript language
-      segments = await fetchTranscript(videoId);
+      segments = (await fetchTranscript(videoId, fetchOptions)) as unknown as TranscriptSegment[];
     }
 
     if (!segments || segments.length === 0) {
@@ -54,9 +97,20 @@ export async function getYouTubeTranscript(videoId: string): Promise<TranscriptR
     return { text, estimatedMinutes };
   } catch (error: unknown) {
     if (error instanceof Error) {
-      // Re-throw with a cleaner message
-      if (error.message.includes('Could not get transcript')) {
-        throw new Error('No transcript available for this video. It may not have captions or auto-generated subtitles.');
+      const msg = error.message;
+      if (
+        msg.includes('Could not get transcript') ||
+        msg.includes('No transcripts are available') ||
+        msg.includes('disabled') ||
+        msg.includes('TooManyRequest') ||
+        msg.includes('status code')
+      ) {
+        throw new Error(
+          'YouTube blocked this request or transcripts are unavailable. ' +
+          'YouTube often blocks cloud platforms like Vercel. ' +
+          'To fix this, you can copy-paste the video transcript/notes into the "Paste Text" tab, ' +
+          'or configure a residential proxy by setting the YOUTUBE_PROXY environment variable in Vercel.'
+        );
       }
       throw error;
     }
