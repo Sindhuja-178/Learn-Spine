@@ -1,12 +1,12 @@
+import { getDocumentProxy, extractText } from 'unpdf';
+
 /**
  * Extract plain text from a PDF buffer.
  */
 export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
-    const { PDFParse } = await import('pdf-parse');
-    const parser = new PDFParse({ data: new Uint8Array(buffer) });
-
-    const result = await parser.getText();
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const result = await extractText(pdf, { mergePages: true });
     const text = result.text;
 
     if (!text || text.trim().length === 0) {
@@ -15,7 +15,7 @@ export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     return text;
   } catch (error: unknown) {
     if (error instanceof Error) {
-      if (error.message.includes('Invalid PDF')) {
+      if (error.message.includes('Invalid PDF') || error.message.includes('PDF format')) {
         throw new Error('This file does not appear to be a valid PDF.');
       }
       throw error;
