@@ -552,10 +552,10 @@ export default function DashboardPage() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <h1 style={{ fontSize: '3rem', fontWeight: 800, lineHeight: 1.15, letterSpacing: '-0.03em', color: 'var(--color-text-primary)' }}>
-                    Turn any text or YouTube link into simple, learnable pieces.
+                    Turn any text or PDF upload into simple, learnable pieces.
                   </h1>
                   <p style={{ fontSize: '1.15rem', color: 'var(--color-text-secondary)', lineHeight: 1.6, maxWidth: '640px', margin: '0 auto' }}>
-                    LearnSpine takes long articles, PDFs and videos and gives them back to you as clean flowcharts, flashcards and quizzes — so what you study actually sticks.
+                    LearnSpine takes long articles and PDFs and gives them back to you as clean flowcharts, flashcards and quizzes — so what you study actually sticks.
                   </p>
                 </div>
 
@@ -708,9 +708,9 @@ export default function DashboardPage() {
                 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--color-text-muted)', fontFamily: 'var(--font-family-display)' }}>01</div>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Paste content or link</h3>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Paste content or PDF</h3>
                     <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                      Drop in any text, raw notes, standard lecture PDF, or a YouTube video link you want to learn from.
+                      Drop in any text, raw notes, or standard lecture PDF you want to learn from.
                     </p>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

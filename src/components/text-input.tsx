@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { processDocument } from '@/actions/process-document';
+
 import { Upload, FileText, Sparkles, AlertCircle, X } from 'lucide-react';
 import type { StudyMaterial } from '@/types';
 
@@ -51,15 +51,23 @@ export function TextInput({ onSuccess }: TextInputProps) {
         fileName = file.name;
       }
 
-      const result = await processDocument({
-        title: title || (file ? file.name : 'Pasted Document'),
-        sourceType: 'text_upload',
-        rawText: rawText || undefined,
-        fileBase64,
-        fileName,
-        quizCount: Number(quizCount),
-        flashcardCount: Number(flashcardCount),
+      const response = await fetch('/api/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: title || (file ? file.name : 'Pasted Document'),
+          sourceType: 'text_upload',
+          rawText: rawText || undefined,
+          fileBase64,
+          fileName,
+          quizCount: Number(quizCount),
+          flashcardCount: Number(flashcardCount)
+        })
       });
+
+      const result = await response.json();
 
       if (result.success) {
         onSuccess(title || (file ? file.name.replace(/\.[^/.]+$/, "") : 'Pasted Document'), result.materials);
