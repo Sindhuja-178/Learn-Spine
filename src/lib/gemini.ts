@@ -5,6 +5,12 @@ let _genAI: GoogleGenerativeAI | null = null;
 export function getGenAI(): GoogleGenerativeAI {
   if (!_genAI) {
     const key = process.env.GEMINI_API_KEY?.trim() || '';
+    if (!key) {
+      throw new Error(
+        'Gemini API key is missing. If you are running locally, make sure you have added GEMINI_API_KEY to your .env.local file. ' +
+        'If you are running on Vercel, make sure you have added the GEMINI_API_KEY environment variable in your Vercel Project Settings.'
+      );
+    }
     _genAI = new GoogleGenerativeAI(key);
   }
   return _genAI;
