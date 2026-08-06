@@ -67,6 +67,26 @@ export function TextInput({ onSuccess }: TextInputProps) {
         })
       });
 
+      const contentType = response.headers.get('content-type');
+      if (!response.ok || !contentType || !contentType.includes('application/json')) {
+        const errorText = await response.text();
+        console.error('Server error response:', errorText);
+
+        let errorMessage = 'An unexpected server error occurred.';
+        if (response.status === 504 || response.status === 502) {
+          errorMessage = 'The request timed out. Vercel\'s free Hobby tier limits execution to 10 seconds. Try reducing the quiz or flashcard count.';
+        } else if (errorText.includes('Gemini API key is missing')) {
+          errorMessage = 'Gemini API key is missing. Please configure GEMINI_API_KEY in your Vercel Project Settings.';
+        } else if (errorText.includes('An error occurred')) {
+          errorMessage = 'A server error occurred. Please verify your Vercel deployment logs and environment variables.';
+        } else if (errorText) {
+          errorMessage = errorText.slice(0, 150);
+        }
+
+        setError(errorMessage);
+        return;
+      }
+
       const result = await response.json();
 
       if (result.success) {
