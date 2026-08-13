@@ -67,11 +67,13 @@ export function FlashcardFlipper({ flashcards }: FlashcardFlipperProps) {
             .num { font-size: 0.75rem; font-weight: 600; color: #4f46e5; text-transform: uppercase; margin-bottom: 0.5rem; }
             .question { font-size: 1rem; margin-bottom: 0.5rem; }
             .answer { font-size: 1rem; color: #0d9488; }
+            .watermark { position: fixed; bottom: 15px; right: 20px; font-size: 0.75rem; font-weight: bold; color: #94a3b8; letter-spacing: 0.05em; opacity: 0.5; }
           </style>
         </head>
         <body>
           <h1>LearnSpine Flashcards Study Guide</h1>
           ${cardsHtml}
+          <div class="watermark">LearnSpine</div>
           <script>
             window.onload = function() {
               window.print();
@@ -203,9 +205,25 @@ export function FlashcardFlipper({ flashcards }: FlashcardFlipperProps) {
       {/* Flashcard Container */}
       <div
         className="flashcard-container"
-        style={{ height: '300px', cursor: 'pointer', marginBottom: '1.5rem' }}
+        style={{ height: '300px', cursor: 'pointer', marginBottom: '1.5rem', position: 'relative' }}
         onClick={() => setIsFlipped(!isFlipped)}
       >
+        {/* Overlay Watermark */}
+        <div style={{
+          position: 'absolute',
+          bottom: '12px',
+          right: '16px',
+          fontSize: '0.75rem',
+          fontWeight: 700,
+          color: 'var(--color-text-secondary)',
+          opacity: 0.15,
+          pointerEvents: 'none',
+          userSelect: 'none',
+          letterSpacing: '0.05em',
+          zIndex: 20
+        }}>
+          LearnSpine
+        </div>
         <div className={`flashcard-inner ${isFlipped ? 'flipped' : ''}`}>
           {/* Front */}
           <div className="flashcard-front glass-card" style={{ borderColor: 'rgba(79, 70, 229, 0.2)', backgroundColor: 'var(--color-bg-secondary)' }}>

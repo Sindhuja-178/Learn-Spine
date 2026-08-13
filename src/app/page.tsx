@@ -44,6 +44,7 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [sharedId, setSharedId] = useState<string | null>(null);
   const [dbConfigured, setDbConfigured] = useState(false);
+  const [activeItemId, setActiveItemId] = useState<string | null>(null);
 
   // Auth States
   const [user, setUser] = useState<any>(null);
@@ -272,6 +273,7 @@ export default function DashboardPage() {
     
     setCurrentTitle(title);
     setCurrentMaterials(materials);
+    setActiveItemId(newItem.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -279,6 +281,7 @@ export default function DashboardPage() {
   const loadHistoryItem = (item: HistoryItem) => {
     setCurrentTitle(item.title);
     setCurrentMaterials(item.materials);
+    setActiveItemId(item.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -369,6 +372,7 @@ export default function DashboardPage() {
   const handleBackToDashboard = () => {
     setCurrentTitle(null);
     setCurrentMaterials(null);
+    setActiveItemId(null);
   };
 
   if (!mounted) {
@@ -522,7 +526,22 @@ export default function DashboardPage() {
           {currentMaterials ? (
             /* Active Workspace View */
             <div className="animate-slide-up" style={{ padding: '1rem 0' }}>
-              <StudyTabs materials={currentMaterials} />
+              <StudyTabs 
+                materials={currentMaterials} 
+                shareId={activeItemId}
+                onShare={async () => {
+                  if (activeItemId) {
+                    const item = history.find(h => h.id === activeItemId);
+                    if (item) {
+                      await handleShareGuide(item, {} as any);
+                    }
+                  } else {
+                    if (history.length > 0) {
+                      await handleShareGuide(history[0], {} as any);
+                    }
+                  }
+                }}
+              />
             </div>
           ) : (
             /* Clean Lovable Landing View */

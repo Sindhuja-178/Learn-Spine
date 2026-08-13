@@ -77,6 +77,33 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
     const svgClone = svgElement.cloneNode(true) as SVGElement;
     svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     
+    // Add watermark
+    const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    
+    // Try to get viewBox dimensions to position the watermark at the bottom right corner
+    const viewBox = svgClone.getAttribute('viewBox');
+    let x = 30;
+    let y = 40;
+    if (viewBox) {
+      const parts = viewBox.split(' ');
+      if (parts.length === 4) {
+        const width = parseFloat(parts[2]);
+        const height = parseFloat(parts[3]);
+        x = width - 120;
+        y = height - 25;
+      }
+    }
+    
+    textNode.setAttribute('x', String(x));
+    textNode.setAttribute('y', String(y));
+    textNode.setAttribute('fill', '#94a3b8'); // Slate 400
+    textNode.setAttribute('font-size', '16');
+    textNode.setAttribute('font-family', 'sans-serif');
+    textNode.setAttribute('font-weight', 'bold');
+    textNode.setAttribute('opacity', '0.6');
+    textNode.textContent = 'LearnSpine';
+    svgClone.appendChild(textNode);
+    
     const svgString = new XMLSerializer().serializeToString(svgClone);
     const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
     const svgUrl = URL.createObjectURL(svgBlob);
@@ -194,7 +221,8 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
           alignItems: 'center',
           justifyContent: 'center',
           overflow: 'hidden',
-          cursor: isDragging ? 'grabbing' : 'grab'
+          cursor: isDragging ? 'grabbing' : 'grab',
+          position: 'relative'
         }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -202,6 +230,22 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
       >
+        {/* Overlay Watermark */}
+        <div style={{
+          position: 'absolute',
+          bottom: '12px',
+          right: '16px',
+          fontSize: '0.8rem',
+          fontWeight: 700,
+          color: 'var(--color-text-secondary)',
+          opacity: 0.25,
+          pointerEvents: 'none',
+          userSelect: 'none',
+          letterSpacing: '0.05em',
+          zIndex: 10
+        }}>
+          LearnSpine
+        </div>
         <div
           ref={containerRef}
           style={{

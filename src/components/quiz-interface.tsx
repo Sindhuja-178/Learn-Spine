@@ -50,11 +50,13 @@ export function QuizInterface({ questions }: QuizInterfaceProps) {
             .options li { padding: 0.25rem 0; }
             .answer { font-size: 0.9rem; color: #16a34a; font-weight: 600; }
             .explanation { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; font-style: italic; }
+            .watermark { position: fixed; bottom: 15px; right: 20px; font-size: 0.75rem; font-weight: bold; color: #94a3b8; letter-spacing: 0.05em; opacity: 0.5; }
           </style>
         </head>
         <body>
           <h1>LearnSpine Practice Quiz</h1>
           ${quizHtml}
+          <div class="watermark">LearnSpine</div>
           <script>
             window.onload = function() {
               window.print();
@@ -216,7 +218,23 @@ export function QuizInterface({ questions }: QuizInterfaceProps) {
       </div>
 
       {/* Question Card */}
-      <div className="glass-card animate-fade-in" style={{ padding: '2rem', marginBottom: '1.5rem', backgroundColor: 'var(--color-bg-secondary)' }}>
+      <div className="glass-card animate-fade-in" style={{ padding: '2rem', marginBottom: '1.5rem', backgroundColor: 'var(--color-bg-secondary)', position: 'relative' }}>
+        {/* Overlay Watermark */}
+        <div style={{
+          position: 'absolute',
+          bottom: '12px',
+          right: '16px',
+          fontSize: '0.75rem',
+          fontWeight: 700,
+          color: 'var(--color-text-secondary)',
+          opacity: 0.15,
+          pointerEvents: 'none',
+          userSelect: 'none',
+          letterSpacing: '0.05em',
+          zIndex: 10
+        }}>
+          LearnSpine
+        </div>
         <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
           {current.question}
         </h3>
