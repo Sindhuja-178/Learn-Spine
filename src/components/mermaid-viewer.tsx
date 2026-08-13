@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { ZoomIn, ZoomOut, RotateCcw, AlertTriangle } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, AlertTriangle, Copy, Download, Check } from 'lucide-react';
 
 interface MermaidViewerProps {
   code: string;
@@ -59,6 +59,36 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
 
     renderDiagram();
   }, [code]);
+
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyCode = useCallback(() => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [code]);
+
+  const handleDownloadSVG = useCallback(() => {
+    if (!containerRef.current) return;
+    const svgElement = containerRef.current.querySelector('svg');
+    if (!svgElement) return;
+
+    // Clone the element to avoid mutating live DOM
+    const svgClone = svgElement.cloneNode(true) as SVGElement;
+    svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    
+    const svgString = new XMLSerializer().serializeToString(svgClone);
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const svgUrl = URL.createObjectURL(svgBlob);
+    
+    const downloadLink = document.createElement('a');
+    downloadLink.href = svgUrl;
+    downloadLink.download = 'learnspine-flowchart.svg';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    URL.revokeObjectURL(svgUrl);
+  }, []);
 
   const handleZoomIn = useCallback(() => {
     setScale((s) => Math.min(s + 0.25, 3));
@@ -132,6 +162,13 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
       }}>
         <h3 style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Concept Flowchart</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <button onClick={handleCopyCode} className="btn-ghost" style={{ padding: '0.5rem' }} title="Copy Mermaid Code">
+            {copied ? <Check className="w-4 h-4 text-[var(--color-accent-green)]" /> : <Copy className="w-4 h-4" />}
+          </button>
+          <button onClick={handleDownloadSVG} className="btn-ghost" style={{ padding: '0.5rem' }} title="Download SVG Flowchart">
+            <Download className="w-4 h-4" />
+          </button>
+          <div style={{ width: '1px', height: '1.25rem', backgroundColor: 'var(--color-border-default)', margin: '0 0.5rem' }} />
           <button onClick={handleZoomOut} className="btn-ghost" style={{ padding: '0.5rem' }} title="Zoom out">
             <ZoomOut className="w-4 h-4" />
           </button>

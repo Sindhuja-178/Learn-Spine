@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Check, RotateCcw, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, RotateCcw, X, Copy, FileSpreadsheet, Printer, CheckCheck } from 'lucide-react';
 import type { Flashcard } from '@/types';
 
 interface FlashcardFlipperProps {
@@ -12,6 +12,77 @@ export function FlashcardFlipper({ flashcards }: FlashcardFlipperProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [results, setResults] = useState<Record<number, 'got_it' | 'practice'>>({});
+  const [copiedText, setCopiedText] = useState(false);
+
+  const handleCopyCardsText = useCallback(() => {
+    const textContent = flashcards
+      .map((card, index) => `${index + 1}. Q: ${card.question}\n   A: ${card.answer}`)
+      .join('\n\n');
+    navigator.clipboard.writeText(textContent);
+    setCopiedText(true);
+    setTimeout(() => setCopiedText(false), 2000);
+  }, [flashcards]);
+
+  const exportAnkiCSV = useCallback(() => {
+    const escape = (text: string) => `"${text.replace(/"/g, '""')}"`;
+    const csvContent = flashcards
+      .map((card) => `${escape(card.question)},${escape(card.answer)}`)
+      .join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'learnspine-flashcards-anki.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [flashcards]);
+
+  const exportPrintPDF = useCallback(() => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const cardsHtml = flashcards
+      .map(
+        (card, index) => `
+        <div class="card">
+          <div class="num">Card ${index + 1}</div>
+          <div class="question"><strong>Question:</strong> ${card.question}</div>
+          <div class="answer"><strong>Answer:</strong> ${card.answer}</div>
+        </div>
+      `
+      )
+      .join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>LearnSpine Flashcards</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 2rem; color: #0f172a; }
+            h1 { font-size: 1.5rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 2rem; }
+            .card { page-break-inside: avoid; border: 1px solid #e2e8f0; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; background: #f8fafc; }
+            .num { font-size: 0.75rem; font-weight: 600; color: #4f46e5; text-transform: uppercase; margin-bottom: 0.5rem; }
+            .question { font-size: 1rem; margin-bottom: 0.5rem; }
+            .answer { font-size: 1rem; color: #0d9488; }
+          </style>
+        </head>
+        <body>
+          <h1>LearnSpine Flashcards Study Guide</h1>
+          ${cardsHtml}
+          <script>
+            window.onload = function() {
+              window.print();
+              window.close();
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }, [flashcards]);
 
   const current = flashcards[currentIndex];
   const total = flashcards.length;
@@ -231,6 +302,37 @@ export function FlashcardFlipper({ flashcards }: FlashcardFlipperProps) {
       <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '1.5rem' }}>
         Tip: Press Space to flip the card, ← → arrow keys to navigate
       </p>
+
+      {/* Export Options */}
+      <div style={{
+        marginTop: '2.5rem',
+        padding: '1rem',
+        borderRadius: '12px',
+        border: '1px dashed var(--color-border-default)',
+        backgroundColor: 'var(--color-bg-secondary)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '0.75rem'
+      }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Export Options
+        </span>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button onClick={handleCopyCardsText} className="btn-ghost" style={{ fontSize: '0.8rem', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            {copiedText ? <CheckCheck className="w-3.5 h-3.5 text-[var(--color-accent-green)]" /> : <Copy className="w-3.5 h-3.5" />}
+            Copy Text
+          </button>
+          <button onClick={exportAnkiCSV} className="btn-ghost" style={{ fontSize: '0.8rem', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            Anki (CSV)
+          </button>
+          <button onClick={exportPrintPDF} className="btn-ghost" style={{ fontSize: '0.8rem', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <Printer className="w-3.5 h-3.5" />
+            Print Study Guide
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

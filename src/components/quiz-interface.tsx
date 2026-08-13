@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { CheckCircle, XCircle, ArrowRight, RotateCcw, Trophy } from 'lucide-react';
+import { CheckCircle, XCircle, ArrowRight, RotateCcw, Trophy, Printer } from 'lucide-react';
 import type { QuizQuestion } from '@/types';
 
 interface QuizInterfaceProps {
@@ -15,6 +15,57 @@ export function QuizInterface({ questions }: QuizInterfaceProps) {
   const [score, setScore] = useState(0);
   const [answers, setAnswers] = useState<{ questionIndex: number; selected: number; correct: number }[]>([]);
   const [isComplete, setIsComplete] = useState(false);
+
+  const exportPrintPDF = useCallback(() => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const quizHtml = questions
+      .map(
+        (q, index) => `
+        <div class="question-block">
+          <div class="num">Question ${index + 1}</div>
+          <div class="question">${q.question}</div>
+          <ul class="options">
+            ${q.options.map((opt, oIdx) => `<li>${String.fromCharCode(65 + oIdx)}) ${opt}</li>`).join('')}
+          </ul>
+          <div class="answer"><strong>Correct Answer:</strong> Option ${String.fromCharCode(65 + q.correct_option)}</div>
+          <div class="explanation"><strong>Explanation:</strong> ${q.explanation}</div>
+        </div>
+      `
+      )
+      .join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>LearnSpine Quiz</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 2rem; color: #0f172a; }
+            h1 { font-size: 1.5rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-bottom: 2rem; }
+            .question-block { page-break-inside: avoid; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.5rem; margin-bottom: 1.5rem; }
+            .num { font-size: 0.75rem; font-weight: 600; color: #4f46e5; text-transform: uppercase; margin-bottom: 0.5rem; }
+            .question { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; }
+            .options { list-style: none; padding-left: 0; margin-bottom: 1rem; }
+            .options li { padding: 0.25rem 0; }
+            .answer { font-size: 0.9rem; color: #16a34a; font-weight: 600; }
+            .explanation { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; font-style: italic; }
+          </style>
+        </head>
+        <body>
+          <h1>LearnSpine Practice Quiz</h1>
+          ${quizHtml}
+          <script>
+            window.onload = function() {
+              window.print();
+              window.close();
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }, [questions]);
 
   const current = questions[currentIndex];
   const total = questions.length;
@@ -125,10 +176,16 @@ export function QuizInterface({ questions }: QuizInterfaceProps) {
           })}
         </div>
 
-        <button onClick={handleRestart} className="btn-primary">
-          <RotateCcw className="w-4 h-4" />
-          Retake Quiz
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+          <button onClick={handleRestart} className="btn-primary">
+            <RotateCcw className="w-4 h-4" />
+            Retake Quiz
+          </button>
+          <button onClick={exportPrintPDF} className="btn-secondary">
+            <Printer className="w-4 h-4" />
+            Print Quiz
+          </button>
+        </div>
       </div>
     );
   }
@@ -250,7 +307,12 @@ export function QuizInterface({ questions }: QuizInterfaceProps) {
       </div>
 
       {/* Actions */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem' }}>
+        <button onClick={exportPrintPDF} className="btn-ghost" style={{ fontSize: '0.8rem', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <Printer className="w-4 h-4" />
+          Download Quiz (PDF)
+        </button>
+
         {!isAnswered ? (
           <button
             onClick={handleCheck}
