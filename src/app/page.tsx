@@ -387,6 +387,63 @@ export default function DashboardPage() {
     );
   }
 
+  // 1. Force Database Configuration Notice
+  if (!dbConfigured) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-bg-primary)', padding: '2rem' }}>
+        <div className="card animate-scale-in" style={{ padding: '3rem', maxWidth: '500px', textAlign: 'center', border: '1px solid var(--color-border-default)', backgroundColor: 'var(--color-bg-secondary)' }}>
+          <h2 style={{ marginBottom: '1rem', fontWeight: 700 }}>Database Configuration Required</h2>
+          <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem', lineHeight: 1.6 }}>
+            LearnSpine requires Supabase to handle user authentication, history sync, and sharing features.
+          </p>
+          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', backgroundColor: 'var(--color-bg-primary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--color-border-default)' }}>
+            Please add your <strong>NEXT_PUBLIC_SUPABASE_URL</strong> and <strong>NEXT_PUBLIC_SUPABASE_ANON_KEY</strong> in your <code>.env.local</code> file or Vercel Environment Variables.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Force Authentication Wall
+  if (!user) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        backgroundColor: 'var(--color-bg-primary)',
+        padding: '1rem' 
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem' }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            backgroundColor: 'var(--color-text-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--color-bg-secondary)',
+            fontWeight: 'bold',
+            fontFamily: 'var(--font-family-display)',
+            fontSize: '1rem'
+          }}>
+            L
+          </div>
+          <span style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--color-text-primary)', letterSpacing: '-0.02em' }}>LearnSpine</span>
+        </div>
+
+        <AuthModal 
+          isOpen={true} 
+          onSuccess={handleAuthSuccess}
+          isFullPage={true}
+        />
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-bg-primary)' }}>
       
