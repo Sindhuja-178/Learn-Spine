@@ -411,3 +411,19 @@ textarea.input-field {
 ::-webkit-scrollbar-thumb:hover {
   background: #d6d3d1;
 }
+
+/* ============================================================
+   Contact Page Responsive Grid
+   ============================================================ */
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 600px) {
+  .contact-grid {
+    grid-template-columns: 1fr;
+  }
+}

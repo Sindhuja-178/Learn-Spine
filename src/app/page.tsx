@@ -473,7 +473,7 @@ export default function DashboardPage() {
           ) : null}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-            <a href="mailto:artist.sindhuja@gmail.com" className="hover-link" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Contact</a>
+            <a href="/contact" className="hover-link" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Contact</a>
             <a href="#pricing" className="hover-link" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Pricing</a>
             
             {dbConfigured && (
@@ -851,7 +851,7 @@ export default function DashboardPage() {
                   <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
                     Curious about integrations, pricing tiers, or how LearnSpine handles your material? Ask away — it lands straight in our inbox.
                   </p>
-                  <a href="mailto:artist.sindhuja@gmail.com" className="btn-secondary" style={{ alignSelf: 'flex-start', marginTop: '0.5rem' }}>
+                  <a href="/contact" className="btn-secondary" style={{ alignSelf: 'flex-start', marginTop: '0.5rem' }}>
                     <Mail className="w-4 h-4" />
                     Contact Support
                   </a>
