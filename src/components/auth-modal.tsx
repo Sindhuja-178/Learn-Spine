@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Mail, Lock, X, AlertCircle, Sparkles } from 'lucide-react';
 
@@ -9,10 +9,15 @@ interface AuthModalProps {
   onClose?: () => void;
   onSuccess: () => void;
   isFullPage?: boolean;
+  initialView?: 'signin' | 'signup';
 }
 
-export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false }: AuthModalProps) {
-  const [isSignUp, setIsSignUp] = useState(false);
+export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, initialView = 'signin' }: AuthModalProps) {
+  const [isSignUp, setIsSignUp] = useState(initialView === 'signup');
+
+  useEffect(() => {
+    setIsSignUp(initialView === 'signup');
+  }, [initialView]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,9 +40,13 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false }: Au
 
     try {
       if (isSignUp) {
+        const redirectUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: redirectUrl,
+          }
         });
 
         if (signUpError) {

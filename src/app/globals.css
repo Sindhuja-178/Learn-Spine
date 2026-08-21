@@ -91,6 +91,14 @@ a {
   text-decoration: none;
 }
 
+.hover-link {
+  transition: color 0.15s ease;
+}
+
+.hover-link:hover {
+  color: var(--color-text-primary) !important;
+}
+
 /* ============================================================
    Refined Minimalist Rounded Cards
    ============================================================ */

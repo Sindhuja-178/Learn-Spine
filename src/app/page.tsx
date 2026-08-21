@@ -404,46 +404,6 @@ export default function DashboardPage() {
     );
   }
 
-  // 2. Force Authentication Wall
-  if (!user) {
-    return (
-      <div style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        backgroundColor: 'var(--color-bg-primary)',
-        padding: '1rem' 
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem' }}>
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            backgroundColor: 'var(--color-text-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--color-bg-secondary)',
-            fontWeight: 'bold',
-            fontFamily: 'var(--font-family-display)',
-            fontSize: '1rem'
-          }}>
-            L
-          </div>
-          <span style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--color-text-primary)', letterSpacing: '-0.02em' }}>LearnSpine</span>
-        </div>
-
-        <AuthModal 
-          isOpen={true} 
-          onSuccess={handleAuthSuccess}
-          isFullPage={true}
-        />
-      </div>
-    );
-  }
-
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-bg-primary)' }}>
       
@@ -478,30 +438,23 @@ export default function DashboardPage() {
               Back to Workspace
             </button>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }} onClick={handleBackToDashboard}>
-                <div style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '6px',
-                  backgroundColor: 'var(--color-text-primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--color-bg-secondary)',
-                  fontWeight: 'bold',
-                  fontFamily: 'var(--font-family-display)',
-                  fontSize: '0.9rem'
-                }}>
-                  L
-                </div>
-                <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--color-text-primary)', letterSpacing: '-0.01em' }}>LearnSpine</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }} onClick={handleBackToDashboard}>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                backgroundColor: 'var(--color-text-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--color-bg-secondary)',
+                fontWeight: 'bold',
+                fontFamily: 'var(--font-family-display)',
+                fontSize: '0.9rem'
+              }}>
+                L
               </div>
-              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                <a href="#how" className="hover-link" style={{ transition: 'color 0.15s' }}>How it works</a>
-                <a href="#features" className="hover-link" style={{ transition: 'color 0.15s' }}>What you get</a>
-                {history.length > 0 && <a href="#history" className="hover-link" style={{ transition: 'color 0.15s' }}>Recent Guides</a>}
-              </div>
+              <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--color-text-primary)', letterSpacing: '-0.01em' }}>LearnSpine</span>
             </div>
           )}
 
@@ -519,9 +472,10 @@ export default function DashboardPage() {
             </span>
           ) : null}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+            <a href="mailto:artist.sindhuja@gmail.com" className="hover-link" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Contact</a>
+            <a href="#pricing" className="hover-link" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Pricing</a>
             
-            {/* Supabase authentication trigger controls */}
             {dbConfigured && (
               <>
                 {user ? (
@@ -552,25 +506,20 @@ export default function DashboardPage() {
                     </button>
                   </div>
                 ) : (
-                  <button 
-                    onClick={() => setIsAuthModalOpen(true)} 
-                    className="btn-secondary" 
-                    style={{ padding: '0.45rem 1rem', fontSize: '0.8rem', borderRadius: '9999px' }}
-                  >
-                    <LogIn className="w-3.5 h-3.5" /> Sign In
-                  </button>
+                  <>
+                    <a href="/login" className="hover-link" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Log in</a>
+                    <a href="/signup" className="btn-primary" style={{ padding: '0.45rem 1.2rem', fontSize: '0.8rem' }}>
+                      Sign up
+                    </a>
+                  </>
                 )}
               </>
             )}
 
-            {currentMaterials ? (
+            {currentMaterials && (
               <button onClick={handleBackToDashboard} className="btn-primary" style={{ padding: '0.45rem 1.2rem', fontSize: '0.8rem' }}>
                 <Plus className="w-3.5 h-3.5" /> New Guide
               </button>
-            ) : (
-              <a href="#generate" className="btn-primary" style={{ padding: '0.45rem 1.2rem', fontSize: '0.8rem' }}>
-                Get Started
-              </a>
             )}
           </div>
         </div>
