@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useRef } from 'react';
-
 import { Upload, FileText, Sparkles, AlertCircle, X } from 'lucide-react';
 import type { StudyMaterial } from '@/types';
+import { extractTextFromPDFClient } from '@/lib/pdf-client';
 
 interface TextInputProps {
   onSuccess: (title: string, materials: StudyMaterial) => void;
@@ -31,24 +31,20 @@ export function TextInput({ onSuccess }: TextInputProps) {
     setLoading(true);
 
     try {
-      let fileBase64: string | undefined;
-      let fileName: string | undefined;
+      let rawTextToSend = rawText;
 
       if (file) {
-        // Read file as base64 for Server Action
-        const base64Data = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const resultStr = reader.result as string;
-            // Strip out data:application/pdf;base64,
-            const base64 = resultStr.split(',')[1];
-            resolve(base64);
-          };
-          reader.onerror = (err) => reject(err);
-          reader.readAsDataURL(file);
-        });
-        fileBase64 = base64Data;
-        fileName = file.name;
+        if (file.name.toLowerCase().endsWith('.pdf')) {
+          rawTextToSend = await extractTextFromPDFClient(file);
+        } else {
+          // TXT file extraction
+          rawTextToSend = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = (err) => reject(err);
+            reader.readAsText(file);
+          });
+        }
       }
 
       const response = await fetch('/api/process', {
@@ -57,11 +53,9 @@ export function TextInput({ onSuccess }: TextInputProps) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          title: title || (file ? file.name : 'Pasted Document'),
+          title: title || (file ? file.name.replace(/\.[^/.]+$/, "") : 'Pasted Document'),
           sourceType: 'text_upload',
-          rawText: rawText || undefined,
-          fileBase64,
-          fileName,
+          rawText: rawTextToSend || undefined,
           quizCount: Number(quizCount),
           flashcardCount: Number(flashcardCount)
         })
