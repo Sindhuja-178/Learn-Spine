@@ -217,6 +217,24 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
           </div>
         </div>
 
+        {isSignUp && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginTop: '0.25rem' }}>
+            <input 
+              id="gdpr-consent" 
+              type="checkbox" 
+              required 
+              style={{ marginTop: '0.2rem', cursor: 'pointer' }}
+            />
+            <label htmlFor="gdpr-consent" style={{ fontSize: '0.775rem', color: 'var(--color-text-secondary)', lineHeight: 1.4, cursor: 'pointer' }}>
+              I agree to the{' '}
+              <a href="/privacy" target="_blank" style={{ textDecoration: 'underline', color: 'var(--color-text-primary)', fontWeight: 600 }}>
+                Privacy Policy
+              </a>{' '}
+              and allow LearnSpine to process my documents.
+            </label>
+          </div>
+        )}
+
         <button
           type="submit"
           className="btn-primary"

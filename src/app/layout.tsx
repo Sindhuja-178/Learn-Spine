@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ConsentBanner } from "@/components/consent-banner";
 
 export const metadata: Metadata = {
   title: {
@@ -21,6 +22,7 @@ export default function RootLayout({
       <html lang="en">
         <body className="antialiased">
           {children}
+          <ConsentBanner />
         </body>
       </html>
     );
