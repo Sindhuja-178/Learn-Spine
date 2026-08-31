@@ -62,35 +62,6 @@ export function StudyTabs({ materials, shareId, onShare }: StudyTabsProps) {
             Quiz
           </button>
         </div>
-
-        <button
-          onClick={handleShareClick}
-          className="btn-ghost"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.625rem 1.25rem',
-            borderRadius: '12px',
-            border: '1px solid var(--color-border-default)',
-            fontSize: '0.875rem',
-            fontWeight: 500,
-            color: copiedShare ? 'var(--color-accent-green)' : 'var(--color-text-secondary)',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          {copiedShare ? (
-            <>
-              <Check className="w-4 h-4" />
-              Link Copied!
-            </>
-          ) : (
-            <>
-              <Share2 className="w-4 h-4" />
-              Share Guide
-            </>
-          )}
-        </button>
       </div>
 
       {/* Tab content */}

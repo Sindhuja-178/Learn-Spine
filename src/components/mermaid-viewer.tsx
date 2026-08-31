@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { ZoomIn, ZoomOut, RotateCcw, AlertTriangle, Copy, Download, Check } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, AlertTriangle, Download } from 'lucide-react';
 
 interface MermaidViewerProps {
   code: string;
@@ -60,18 +60,12 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
     renderDiagram();
   }, [code]);
 
-  const [copied, setCopied] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 
-  const handleCopyCode = useCallback(() => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [code]);
-
-  const handleDownloadSVG = useCallback(() => {
-    if (!containerRef.current) return;
+  const getWatermarkedSVGString = useCallback(() => {
+    if (!containerRef.current) return null;
     const svgElement = containerRef.current.querySelector('svg');
-    if (!svgElement) return;
+    if (!svgElement) return null;
 
     // Clone the element to avoid mutating live DOM
     const svgClone = svgElement.cloneNode(true) as SVGElement;
@@ -79,16 +73,17 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
     
     // Add watermark
     const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    
-    // Try to get viewBox dimensions to position the watermark at the bottom right corner
     const viewBox = svgClone.getAttribute('viewBox');
+    let width = 800;
+    let height = 600;
     let x = 30;
     let y = 40;
+
     if (viewBox) {
       const parts = viewBox.split(' ');
       if (parts.length === 4) {
-        const width = parseFloat(parts[2]);
-        const height = parseFloat(parts[3]);
+        width = parseFloat(parts[2]);
+        height = parseFloat(parts[3]);
         x = width - 120;
         y = height - 25;
       }
@@ -104,8 +99,18 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
     textNode.textContent = 'LearnSpine';
     svgClone.appendChild(textNode);
     
-    const svgString = new XMLSerializer().serializeToString(svgClone);
-    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    return {
+      svgString: new XMLSerializer().serializeToString(svgClone),
+      width,
+      height
+    };
+  }, []);
+
+  const handleDownloadSVG = useCallback(() => {
+    const data = getWatermarkedSVGString();
+    if (!data) return;
+
+    const svgBlob = new Blob([data.svgString], { type: 'image/svg+xml;charset=utf-8' });
     const svgUrl = URL.createObjectURL(svgBlob);
     
     const downloadLink = document.createElement('a');
@@ -115,7 +120,74 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
     downloadLink.click();
     document.body.removeChild(downloadLink);
     URL.revokeObjectURL(svgUrl);
-  }, []);
+  }, [getWatermarkedSVGString]);
+
+  const handleDownloadPNG = useCallback(() => {
+    const data = getWatermarkedSVGString();
+    if (!data) return;
+
+    const svgBlob = new Blob([data.svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = data.width * 2;
+      canvas.height = data.height * 2;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const pngUrl = canvas.toDataURL('image/png');
+        const downloadLink = document.createElement('a');
+        downloadLink.href = pngUrl;
+        downloadLink.download = 'learnspine-flowchart.png';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+      }
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }, [getWatermarkedSVGString]);
+
+  const handleDownloadPDF = useCallback(async () => {
+    const data = getWatermarkedSVGString();
+    if (!data) return;
+
+    const svgBlob = new Blob([data.svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = data.width * 2;
+      canvas.height = data.height * 2;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = await import('jspdf');
+        
+        const orientation = data.width > data.height ? 'l' : 'p';
+        const pdf = new jsPDF({
+          orientation: orientation,
+          unit: 'px',
+          format: [data.width, data.height]
+        });
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, data.width, data.height);
+        pdf.save('learnspine-flowchart.pdf');
+      }
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }, [getWatermarkedSVGString]);
 
   const handleZoomIn = useCallback(() => {
     setScale((s) => Math.min(s + 0.25, 3));
@@ -189,12 +261,58 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
       }}>
         <h3 style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Concept Flowchart</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-          <button onClick={handleCopyCode} className="btn-ghost" style={{ padding: '0.5rem' }} title="Copy Mermaid Code">
-            {copied ? <Check className="w-4 h-4 text-[var(--color-accent-green)]" /> : <Copy className="w-4 h-4" />}
-          </button>
-          <button onClick={handleDownloadSVG} className="btn-ghost" style={{ padding: '0.5rem' }} title="Download SVG Flowchart">
-            <Download className="w-4 h-4" />
-          </button>
+          <div style={{ position: 'relative' }} onMouseLeave={() => setShowDownloadMenu(false)}>
+            <button 
+              onClick={() => setShowDownloadMenu(!showDownloadMenu)} 
+              className="btn-ghost" 
+              style={{ padding: '0.5rem' }} 
+              title="Download Flowchart"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            {showDownloadMenu && (
+              <div 
+                className="animate-slide-down"
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '0.5rem',
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border-default)',
+                  borderRadius: '12px',
+                  boxShadow: 'var(--shadow-md)',
+                  zIndex: 10,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  padding: '0.35rem',
+                  minWidth: '130px'
+                }}
+              >
+                <button 
+                  onClick={() => { handleDownloadSVG(); setShowDownloadMenu(false); }}
+                  className="btn-ghost"
+                  style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
+                >
+                  SVG Vector
+                </button>
+                <button 
+                  onClick={() => { handleDownloadPNG(); setShowDownloadMenu(false); }}
+                  className="btn-ghost"
+                  style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
+                >
+                  PNG Image
+                </button>
+                <button 
+                  onClick={() => { handleDownloadPDF(); setShowDownloadMenu(false); }}
+                  className="btn-ghost"
+                  style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
+                >
+                  PDF Document
+                </button>
+              </div>
+            )}
+          </div>
           <div style={{ width: '1px', height: '1.25rem', backgroundColor: 'var(--color-border-default)', margin: '0 0.5rem' }} />
           <button onClick={handleZoomOut} className="btn-ghost" style={{ padding: '0.5rem' }} title="Zoom out">
             <ZoomOut className="w-4 h-4" />

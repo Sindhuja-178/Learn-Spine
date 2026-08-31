@@ -671,33 +671,6 @@ export default function DashboardPage() {
                           <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{item.date}</span>
                         </div>
                         
-                        {/* Share Button (Conditional on Supabase presence) */}
-                        {dbConfigured && (
-                          <button
-                            onClick={(e) => handleShareGuide(item, e)}
-                            className="btn-ghost"
-                            style={{
-                              padding: '0.35rem',
-                              borderRadius: '9999px',
-                              color: sharedId === item.id ? 'var(--color-accent-green)' : 'var(--color-text-muted)',
-                              transition: 'color 0.15s'
-                            }}
-                            onMouseEnter={(e) => {
-                              if (sharedId !== item.id) e.currentTarget.style.color = 'var(--color-text-primary)';
-                            }}
-                            onMouseLeave={(e) => {
-                              if (sharedId !== item.id) e.currentTarget.style.color = 'var(--color-text-muted)';
-                            }}
-                            title="Copy Sharing URL"
-                          >
-                            {sharedId === item.id ? (
-                              <Check className="w-4 h-4" />
-                            ) : (
-                              <Share2 className="w-4 h-4" />
-                            )}
-                          </button>
-                        )}
-
                         <button
                           onClick={(e) => deleteHistoryItem(item.id, e)}
                           className="btn-ghost"
