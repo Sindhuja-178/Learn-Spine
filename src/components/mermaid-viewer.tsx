@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { ZoomIn, ZoomOut, RotateCcw, AlertTriangle, Download } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, AlertTriangle } from 'lucide-react';
 
 interface MermaidViewerProps {
   code: string;
@@ -59,135 +59,6 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
 
     renderDiagram();
   }, [code]);
-
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
-
-  const getWatermarkedSVGString = useCallback(() => {
-    if (!containerRef.current) return null;
-    const svgElement = containerRef.current.querySelector('svg');
-    if (!svgElement) return null;
-
-    // Clone the element to avoid mutating live DOM
-    const svgClone = svgElement.cloneNode(true) as SVGElement;
-    svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    
-    // Add watermark
-    const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    const viewBox = svgClone.getAttribute('viewBox');
-    let width = 800;
-    let height = 600;
-    let x = 30;
-    let y = 40;
-
-    if (viewBox) {
-      const parts = viewBox.split(' ');
-      if (parts.length === 4) {
-        width = parseFloat(parts[2]);
-        height = parseFloat(parts[3]);
-        x = width - 120;
-        y = height - 25;
-      }
-    }
-    
-    textNode.setAttribute('x', String(x));
-    textNode.setAttribute('y', String(y));
-    textNode.setAttribute('fill', '#94a3b8'); // Slate 400
-    textNode.setAttribute('font-size', '16');
-    textNode.setAttribute('font-family', 'sans-serif');
-    textNode.setAttribute('font-weight', 'bold');
-    textNode.setAttribute('opacity', '0.6');
-    textNode.textContent = 'LearnSpine';
-    svgClone.appendChild(textNode);
-    
-    return {
-      svgString: new XMLSerializer().serializeToString(svgClone),
-      width,
-      height
-    };
-  }, []);
-
-  const handleDownloadSVG = useCallback(() => {
-    const data = getWatermarkedSVGString();
-    if (!data) return;
-
-    const svgBlob = new Blob([data.svgString], { type: 'image/svg+xml;charset=utf-8' });
-    const svgUrl = URL.createObjectURL(svgBlob);
-    
-    const downloadLink = document.createElement('a');
-    downloadLink.href = svgUrl;
-    downloadLink.download = 'learnspine-flowchart.svg';
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-    URL.revokeObjectURL(svgUrl);
-  }, [getWatermarkedSVGString]);
-
-  const handleDownloadPNG = useCallback(() => {
-    const data = getWatermarkedSVGString();
-    if (!data) return;
-
-    const svgBlob = new Blob([data.svgString], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = data.width * 2;
-      canvas.height = data.height * 2;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        const pngUrl = canvas.toDataURL('image/png');
-        const downloadLink = document.createElement('a');
-        downloadLink.href = pngUrl;
-        downloadLink.download = 'learnspine-flowchart.png';
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-      }
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
-  }, [getWatermarkedSVGString]);
-
-  const handleDownloadPDF = useCallback(async () => {
-    const data = getWatermarkedSVGString();
-    if (!data) return;
-
-    const svgBlob = new Blob([data.svgString], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-
-    const img = new Image();
-    img.onload = async () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = data.width * 2;
-      canvas.height = data.height * 2;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        const imgData = canvas.toDataURL('image/png');
-        const { jsPDF } = await import('jspdf');
-        
-        const orientation = data.width > data.height ? 'l' : 'p';
-        const pdf = new jsPDF({
-          orientation: orientation,
-          unit: 'px',
-          format: [data.width, data.height]
-        });
-        
-        pdf.addImage(imgData, 'PNG', 0, 0, data.width, data.height);
-        pdf.save('learnspine-flowchart.pdf');
-      }
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
-  }, [getWatermarkedSVGString]);
 
   const handleZoomIn = useCallback(() => {
     setScale((s) => Math.min(s + 0.25, 3));
@@ -261,59 +132,6 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
       }}>
         <h3 style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Concept Flowchart</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-          <div style={{ position: 'relative' }} onMouseLeave={() => setShowDownloadMenu(false)}>
-            <button 
-              onClick={() => setShowDownloadMenu(!showDownloadMenu)} 
-              className="btn-ghost" 
-              style={{ padding: '0.5rem' }} 
-              title="Download Flowchart"
-            >
-              <Download className="w-4 h-4" />
-            </button>
-            {showDownloadMenu && (
-              <div 
-                className="animate-slide-down"
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: '0.5rem',
-                  backgroundColor: 'var(--color-bg-secondary)',
-                  border: '1px solid var(--color-border-default)',
-                  borderRadius: '12px',
-                  boxShadow: 'var(--shadow-md)',
-                  zIndex: 10,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  padding: '0.35rem',
-                  minWidth: '130px'
-                }}
-              >
-                <button 
-                  onClick={() => { handleDownloadSVG(); setShowDownloadMenu(false); }}
-                  className="btn-ghost"
-                  style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
-                >
-                  SVG Vector
-                </button>
-                <button 
-                  onClick={() => { handleDownloadPNG(); setShowDownloadMenu(false); }}
-                  className="btn-ghost"
-                  style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
-                >
-                  PNG Image
-                </button>
-                <button 
-                  onClick={() => { handleDownloadPDF(); setShowDownloadMenu(false); }}
-                  className="btn-ghost"
-                  style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
-                >
-                  PDF Document
-                </button>
-              </div>
-            )}
-          </div>
-          <div style={{ width: '1px', height: '1.25rem', backgroundColor: 'var(--color-border-default)', margin: '0 0.5rem' }} />
           <button onClick={handleZoomOut} className="btn-ghost" style={{ padding: '0.5rem' }} title="Zoom out">
             <ZoomOut className="w-4 h-4" />
           </button>
@@ -348,29 +166,17 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
       >
-        {/* Overlay Watermark */}
-        <div style={{
-          position: 'absolute',
-          bottom: '12px',
-          right: '16px',
-          fontSize: '0.8rem',
-          fontWeight: 700,
-          color: 'var(--color-text-secondary)',
-          opacity: 0.25,
-          pointerEvents: 'none',
-          userSelect: 'none',
-          letterSpacing: '0.05em',
-          zIndex: 10
-        }}>
-          LearnSpine
-        </div>
         <div
           ref={containerRef}
           style={{
-            transition: 'transform 0.05s ease-out',
-            padding: '2rem',
             transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
             transformOrigin: 'center center',
+            transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
         />
       </div>
