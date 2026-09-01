@@ -8,6 +8,11 @@ export const metadata: Metadata = {
     template: "%s | LearnSpine",
   },
   description: "Convert text and YouTube links into simple flowcharts, interactive flashcards, and quizzes using AI.",
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
 };
 
 export const maxDuration = 60;

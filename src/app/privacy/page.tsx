@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
+import { Logo } from '@/components/logo';
 
 export default function PrivacyPage() {
   const router = useRouter();
@@ -21,11 +22,12 @@ export default function PrivacyPage() {
         top: 0,
         zIndex: 50
       }}>
-        <div style={{ maxWidth: '800px', width: '100%', margin: '0 auto', display: 'flex', alignItems: 'center' }}>
+        <div style={{ maxWidth: '800px', width: '100%', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Logo href="/" />
           <button 
             onClick={() => router.push('/')} 
             className="btn-ghost" 
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 500, paddingLeft: 0 }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 500 }}
           >
             <ChevronLeft className="w-4 h-4" />
             Back to Home
