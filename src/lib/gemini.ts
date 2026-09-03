@@ -130,7 +130,7 @@ export function getStudyMaterialSchema(quizCount: number, flashcardCount: number
 
 export function getGeminiModel(quizCount: number, flashcardCount: number): GenerativeModel {
   return getGenAI().getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3.6-flash',
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: getStudyMaterialSchema(quizCount, flashcardCount),
