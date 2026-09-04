@@ -2,8 +2,8 @@
 
 import { useState, useRef } from 'react';
 import { Upload, FileText, Sparkles, AlertCircle, X } from 'lucide-react';
-import type { StudyMaterial } from '@/types';
-import { extractTextFromPDFClient } from '@/lib/pdf-client';
+import type { StudyMaterial, PDFMetadata } from '@/types';
+import { extractPDFWithMetadata } from '@/lib/pdf-client';
 
 interface TextInputProps {
   onSuccess: (title: string, materials: StudyMaterial) => void;
@@ -32,10 +32,13 @@ export function TextInput({ onSuccess }: TextInputProps) {
 
     try {
       let rawTextToSend = rawText;
+      let pdfInfo: PDFMetadata | undefined = undefined;
 
       if (file) {
         if (file.name.toLowerCase().endsWith('.pdf')) {
-          rawTextToSend = await extractTextFromPDFClient(file);
+          const pdfResult = await extractPDFWithMetadata(file);
+          rawTextToSend = pdfResult.text;
+          pdfInfo = pdfResult.metadata;
         } else {
           // TXT file extraction
           rawTextToSend = await new Promise<string>((resolve, reject) => {
@@ -44,6 +47,10 @@ export function TextInput({ onSuccess }: TextInputProps) {
             reader.onerror = (err) => reject(err);
             reader.readAsText(file);
           });
+          pdfInfo = {
+            fileName: file.name,
+            fileSize: file.size,
+          };
         }
       }
 
@@ -54,8 +61,9 @@ export function TextInput({ onSuccess }: TextInputProps) {
         },
         body: JSON.stringify({
           title: title || (file ? file.name.replace(/\.[^/.]+$/, "") : 'Pasted Document'),
-          sourceType: 'text_upload',
+          sourceType: file ? (file.name.toLowerCase().endsWith('.pdf') ? 'pdf_upload' : 'txt_upload') : 'text_paste',
           rawText: rawTextToSend || undefined,
+          pdfInfo,
           quizCount: Number(quizCount),
           flashcardCount: Number(flashcardCount)
         })

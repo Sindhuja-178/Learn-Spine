@@ -1,25 +1,43 @@
 import { NextResponse } from 'next/server';
 import { getGeminiModel, getSystemPrompt } from '@/lib/gemini';
-import { extractTextFromPDF } from '@/lib/pdf';
+import { extractPDFWithMetadataServer } from '@/lib/pdf';
+import { ProcessingAgent } from '@/lib/processing-agent';
+import type { PDFMetadata, Flashcard, QuizQuestion, StudyMaterial } from '@/types';
 
 export const maxDuration = 60; // Set route timeout to 60 seconds on Vercel
 
 export async function POST(request: Request) {
+  let agent: ProcessingAgent | null = null;
+
   try {
     const input = await request.json();
 
     let finalText = '';
+    let pdfInfo: PDFMetadata | undefined = input.pdfInfo;
+    let extractionDurationMs = 0;
 
-    // 1. Extract content (Text upload or paste)
+    // 1. Extract content (Server-side fallback or client-provided text)
+    const extractionStart = Date.now();
     if (input.fileBase64 && input.fileName) {
       const buffer = Buffer.from(input.fileBase64, 'base64');
 
       if (input.fileName.toLowerCase().endsWith('.pdf')) {
-        finalText = await extractTextFromPDF(buffer);
+        const serverPdf = await extractPDFWithMetadataServer(buffer);
+        finalText = serverPdf.text;
+        pdfInfo = {
+          fileName: input.fileName,
+          fileSize: buffer.length,
+          pageCount: serverPdf.pageCount,
+        };
       } else {
         // TXT or other text files
         finalText = buffer.toString('utf-8');
+        pdfInfo = {
+          fileName: input.fileName,
+          fileSize: buffer.length,
+        };
       }
+      extractionDurationMs = Date.now() - extractionStart;
     } else if (input.rawText) {
       finalText = input.rawText;
     } else {
@@ -31,10 +49,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'The text content is too short. Please provide at least 50 characters of meaningful content.' }, { status: 400 });
     }
 
+    const title = input.title || (pdfInfo?.fileName ? pdfInfo.fileName.replace(/\.[^/.]+$/, '') : 'Study Guide');
+    const sourceType = input.sourceType || (pdfInfo?.fileName ? 'pdf_upload' : 'text_paste');
     const quizCount = input.quizCount || 10;
     const flashcardCount = input.flashcardCount || 10;
 
-    // 3. Chunking System
+    // 3. Initialize Processing Agent
+    agent = new ProcessingAgent({
+      title,
+      sourceType,
+      rawText: finalText,
+      pdfInfo,
+      extractionDurationMs,
+    });
+
+    // 4. Chunking System
     const maxChunkSize = 15000;
     const maxChunks = 4; // limit to maximum 4 chunks to avoid API abuse/timeouts
 
@@ -60,9 +89,10 @@ export async function POST(request: Request) {
       chunks.push(currentChunk.trim());
     }
 
-    console.log(`Processing document in ${chunks.length} chunks.`);
+    agent.recordChunks(chunks);
+    console.log(`[ProcessingAgent] Document "${title}" segmented into ${chunks.length} chunks.`);
 
-    // 4. Process each chunk in parallel using Promise.all
+    // 5. Process each chunk in parallel using Promise.all
     const model = getGeminiModel(quizCount, flashcardCount);
     const systemPrompt = getSystemPrompt(quizCount, flashcardCount);
 
@@ -96,28 +126,47 @@ export async function POST(request: Request) {
 
     const parsedChunks = await Promise.all(chunkPromises);
 
-    // 5. Merge the results
-    const title = input.title || 'Study Guide';
+    // 6. Merge the results
     const mergedMermaid = mergeMermaidFlowcharts(parsedChunks.map(c => c.mermaid_code), title);
 
-    const flashcardsArrays = parsedChunks.map(c => c.flashcards || []);
-    const quizArrays = parsedChunks.map(c => c.quiz || []);
+    const flashcardsArrays: Flashcard[][] = parsedChunks.map(c => c.flashcards || []);
+    const quizArrays: QuizQuestion[][] = parsedChunks.map(c => c.quiz || []);
 
-    const finalFlashcards = distributeSelection(flashcardsArrays, flashcardCount);
-    const finalQuiz = distributeSelection(quizArrays, quizCount);
+    const finalFlashcards = distributeSelection<Flashcard>(flashcardsArrays, flashcardCount);
+    const finalQuiz = distributeSelection<QuizQuestion>(quizArrays, quizCount);
+
+    const materials: StudyMaterial = {
+      mermaid_code: mergedMermaid,
+      flashcards: finalFlashcards,
+      quiz: finalQuiz,
+    };
+
+    // 7. Complete Agent Metrics Logging
+    const metrics = await agent.completeSuccess(materials, systemPrompt.length);
 
     return NextResponse.json({
       success: true,
-      materials: {
-        mermaid_code: mergedMermaid,
-        flashcards: finalFlashcards,
-        quiz: finalQuiz,
-      },
+      materials,
+      metrics,
     });
   } catch (error: unknown) {
     console.error('Processing error:', error);
     const message = error instanceof Error ? error.message : 'An unexpected error occurred.';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+
+    let failureMetrics = undefined;
+    if (agent) {
+      try {
+        failureMetrics = await agent.completeFailure(message);
+      } catch (logErr) {
+        console.error('Failed to log failure metrics:', logErr);
+      }
+    }
+
+    return NextResponse.json({
+      success: false,
+      error: message,
+      metrics: failureMetrics,
+    }, { status: 500 });
   }
 }
 

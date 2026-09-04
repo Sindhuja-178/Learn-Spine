@@ -1,8 +1,20 @@
+import type { PDFMetadata } from '@/types';
+
+export interface PDFClientExtractionResult {
+  text: string;
+  metadata: PDFMetadata;
+}
+
 /**
- * Extract text from a PDF file in the browser using PDF.js loaded dynamically from CDN.
+ * Extract text and metadata from a PDF file in the browser using PDF.js loaded dynamically from CDN.
  */
-export async function extractTextFromPDFClient(file: File): Promise<string> {
-  if (typeof window === 'undefined') return '';
+export async function extractPDFWithMetadata(file: File): Promise<PDFClientExtractionResult> {
+  if (typeof window === 'undefined') {
+    return {
+      text: '',
+      metadata: { fileName: file.name, fileSize: file.size, pageCount: 0 }
+    };
+  }
 
   // Load PDF.js CDN dynamically if not already present
   if (!(window as any).pdfjsLib) {
@@ -16,35 +28,31 @@ export async function extractTextFromPDFClient(file: File): Promise<string> {
   }
 
   const pdfjsLib = (window as any).pdfjsLib;
-  
-  // Set up the worker on the main thread to avoid CORS/worker origin errors
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
   const arrayBuffer = await file.arrayBuffer();
-  
+
   try {
-    const loadingTask = pdfjsLib.getDocument({ 
+    const loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(arrayBuffer),
-      // Use single-thread mode if worker loading fails
       disableWorker: true
     });
-    
+
     const pdf = await loadingTask.promise;
     let fullText = '';
     const numPages = pdf.numPages;
 
-    // Limit extraction to ~25,000 characters to ensure fast client-side performance,
-    // which is more than enough for Gemini's 15,000 max context truncation.
+    // Extract text across pages up to 65,000 characters to match the 4-chunk parallel backend
     for (let i = 1; i <= numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
       const pageText = textContent.items
         .map((item: any) => item.str)
         .join(' ');
-      
+
       fullText += pageText + '\n\n';
-      
-      if (fullText.length > 25000) {
+
+      if (fullText.length > 65000) {
         break;
       }
     }
@@ -56,9 +64,24 @@ export async function extractTextFromPDFClient(file: File): Promise<string> {
       );
     }
 
-    return trimmedText;
+    return {
+      text: trimmedText,
+      metadata: {
+        fileName: file.name,
+        fileSize: file.size,
+        pageCount: numPages,
+      }
+    };
   } catch (err: any) {
     console.error('PDF JS client-side extraction error:', err);
     throw new Error(err?.message || 'Failed to parse PDF file. Please ensure it is a valid text-based PDF.');
   }
+}
+
+/**
+ * Backward-compatible helper extracting text only.
+ */
+export async function extractTextFromPDFClient(file: File): Promise<string> {
+  const result = await extractPDFWithMetadata(file);
+  return result.text;
 }
