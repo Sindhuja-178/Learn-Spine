@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react';
 import { InputTabs } from '@/components/input-tabs';
 import { StudyTabs } from '@/components/study-tabs';
 import { AuthModal } from '@/components/auth-modal';
+import { UpgradeModal } from '@/components/upgrade-modal';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { checkUserSubscription } from '@/lib/subscription';
 import { 
   Sparkles, 
   BookOpen, 
@@ -46,9 +48,33 @@ export default function DashboardPage() {
   const [dbConfigured, setDbConfigured] = useState(false);
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
 
-  // Auth States
+  // Auth & Subscription States
   const [user, setUser] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isPro, setIsPro] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [upgradeNoticePages, setUpgradeNoticePages] = useState<number | undefined>(undefined);
+  const [upgradeSuccessToast, setUpgradeSuccessToast] = useState(false);
+
+  // Customer Portal handler
+  const handleManageSubscription = async () => {
+    try {
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user?.id, returnUrl: window.location.origin }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setIsUpgradeModalOpen(true);
+      }
+    } catch (err) {
+      console.error('Error opening portal:', err);
+      setIsUpgradeModalOpen(true);
+    }
+  };
 
   // Fetch recent guides from Supabase (filtered by user if logged in)
   const fetchSupabaseGuides = async (userId?: string): Promise<HistoryItem[]> => {
@@ -105,8 +131,25 @@ export default function DashboardPage() {
           const { data: { session } } = await supabase.auth.getSession();
           activeUser = session?.user ?? null;
           setUser(activeUser);
+
+          // Check subscription status
+          if (activeUser?.id) {
+            checkUserSubscription(activeUser.id).then(sub => {
+              setIsPro(sub.isPro);
+            });
+          }
         } catch (e) {
           console.error('Auth check error:', e);
+        }
+      }
+
+      // Check URL query for upgrade success
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('upgrade') === 'success') {
+          setUpgradeSuccessToast(true);
+          setIsPro(true);
+          window.history.replaceState({}, '', window.location.pathname);
         }
       }
 
@@ -146,6 +189,15 @@ export default function DashboardPage() {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
         const currentUser = session?.user ?? null;
         setUser(currentUser);
+
+        if (currentUser?.id) {
+          checkUserSubscription(currentUser.id).then(sub => {
+            setIsPro(sub.isPro);
+          });
+        } else {
+          setIsPro(false);
+        }
+
         // Reload history matching current auth status
         const dbItems = await fetchSupabaseGuides(currentUser?.id);
         setHistory(dbItems);
@@ -414,6 +466,41 @@ export default function DashboardPage() {
         onSuccess={handleAuthSuccess}
       />
 
+      {/* Upgrade to Pro modal instance */}
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        pageCountNotice={upgradeNoticePages}
+      />
+
+      {/* Upgrade success celebration banner */}
+      {upgradeSuccessToast && (
+        <div style={{
+          backgroundColor: '#ecfdf5',
+          borderBottom: '1px solid #a7f3d0',
+          color: '#065f46',
+          padding: '0.75rem 2rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.75rem',
+          fontSize: '0.875rem',
+          fontWeight: 500,
+          zIndex: 60,
+          position: 'relative'
+        }}>
+          <Sparkles className="w-4 h-4 text-emerald-600" />
+          <span>🎉 <strong>Välkommen till LearnSpine Pro!</strong> Ditt konto är nu uppgraderat. Du har full tillgång till alla 50–100 sidors dokument och flödesscheman.</span>
+          <button 
+            onClick={() => setUpgradeSuccessToast(false)} 
+            className="btn-ghost" 
+            style={{ padding: '0.2rem 0.5rem', marginLeft: '1rem', fontSize: '0.8rem', cursor: 'pointer' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Top Navbar */}
       <nav style={{
         position: 'sticky',
@@ -476,6 +563,55 @@ export default function DashboardPage() {
             <a href="/contact" className="hover-link" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Contact</a>
             <a href="#pricing" className="hover-link" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Pricing</a>
             
+            {/* Pro / Upgrade button */}
+            {isPro ? (
+              <button
+                onClick={handleManageSubscription}
+                className="btn-ghost"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '9999px',
+                  backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  color: '#b45309',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+                title="Hantera prenumeration"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>PRO ⭐</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setUpgradeNoticePages(undefined);
+                  setIsUpgradeModalOpen(true);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: '9999px',
+                  background: 'linear-gradient(135deg, #ea580c, #d97706)',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+                  cursor: 'pointer'
+                }}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Uppgradera</span>
+              </button>
+            )}
+
             {dbConfigured && (
               <>
                 {user ? (
@@ -585,10 +721,17 @@ export default function DashboardPage() {
                 </div>
 
                 <div style={{ width: '100%', maxWidth: '600px', marginTop: '1rem' }}>
-                  <InputTabs onSuccess={(title, materials) => {
-                    const type = title.startsWith('YouTube:') ? 'youtube' : 'text';
-                    handleSuccess(title, materials, type);
-                  }} />
+                  <InputTabs 
+                    onSuccess={(title, materials) => {
+                      const type = title.startsWith('YouTube:') ? 'youtube' : 'text';
+                      handleSuccess(title, materials, type);
+                    }} 
+                    isPro={isPro}
+                    onRequirePro={(pages) => {
+                      setUpgradeNoticePages(pages);
+                      setIsUpgradeModalOpen(true);
+                    }}
+                  />
                 </div>
               </div>
 
@@ -796,6 +939,111 @@ export default function DashboardPage() {
                       Short multiple-choice quizzes checking your comprehension. Instantly marks correct answers and details key concept explanations.
                     </p>
                   </div>
+                </div>
+              </div>
+
+              {/* Section: Pricing */}
+              <div id="pricing" style={{ display: 'flex', flexDirection: 'column', gap: '3rem', borderTop: '1px solid var(--color-border-default)', paddingTop: '4rem' }}>
+                <div style={{ textAlign: 'center', maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', alignSelf: 'center', padding: '0.25rem 0.75rem', borderRadius: '9999px', backgroundColor: 'rgba(234, 88, 12, 0.1)', color: '#ea580c', fontSize: '0.8rem', fontWeight: 600 }}>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Enkla och transparenta priser
+                  </div>
+                  <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--color-text-primary)' }}>
+                    Investera i dina studieresultat
+                  </h2>
+                  <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.95rem' }}>
+                    Börja gratis och uppgradera när du vill bearbeta hela föreläsningskompendier och kursböcker.
+                  </p>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', maxWidth: '850px', margin: '0 auto', width: '100%' }}>
+                  
+                  {/* Free Tier Card */}
+                  <div className="card" style={{ padding: '2.5rem', backgroundColor: 'var(--color-bg-secondary)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid var(--color-border-default)', borderRadius: '24px' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Gratis</h3>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>För korta sammanfattningar och enstaka artiklar.</p>
+                      <div style={{ margin: '1.5rem 0' }}>
+                        <span style={{ fontSize: '2.5rem', fontWeight: 800 }}>0 SEK</span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}> / alltid</span>
+                      </div>
+                      <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Upp till 10 sidor per dokument
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Standard flödesschemagenerering
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 10 flashcards & provfrågor
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 3 dokument per månad
+                        </li>
+                      </ul>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        const el = document.getElementById('generate');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="btn-secondary" 
+                      style={{ marginTop: '2rem', width: '100%', justifyContent: 'center' }}
+                    >
+                      Kom igång gratis
+                    </button>
+                  </div>
+
+                  {/* Pro Tier Card */}
+                  <div className="card" style={{ padding: '2.5rem', backgroundColor: 'var(--color-bg-secondary)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '2px solid #ea580c', borderRadius: '24px', position: 'relative', boxShadow: '0 8px 30px rgba(234, 88, 12, 0.12)' }}>
+                    <div style={{ position: 'absolute', top: '-12px', right: '24px', backgroundColor: '#ea580c', color: '#fff', fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.75rem', borderRadius: '9999px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Mest Populär
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>LearnSpine Pro</h3>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>För studenter som vill dominera sina kurser.</p>
+                      <div style={{ margin: '1.5rem 0' }}>
+                        <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>69 SEK</span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}> / månad</span>
+                      </div>
+                      <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Upp till 100 sidor per PDF</strong> (Hela kompendier)
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Parallell AI-chunking</strong> (Blixtsnabb hastighet)
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Flödesscheman i SVG, PNG & PDF</strong>
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>20+ Flashcards & provquizzar</strong>
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 30–50 dokument per månad
+                        </li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Inga bindningstider — avsluta när du vill
+                        </li>
+                      </ul>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        if (isPro) {
+                          handleManageSubscription();
+                        } else {
+                          setUpgradeNoticePages(undefined);
+                          setIsUpgradeModalOpen(true);
+                        }
+                      }}
+                      className="btn-primary" 
+                      style={{ marginTop: '2rem', width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, #ea580c, #d97706)', border: 'none', color: '#fff', boxShadow: '0 4px 14px rgba(234, 88, 12, 0.3)' }}
+                    >
+                      {isPro ? 'Hantera prenumeration' : 'Uppgradera till Pro (69 SEK/mån)'}
+                    </button>
+                  </div>
+
                 </div>
               </div>
 

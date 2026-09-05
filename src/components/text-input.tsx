@@ -7,9 +7,11 @@ import { extractPDFWithMetadata } from '@/lib/pdf-client';
 
 interface TextInputProps {
   onSuccess: (title: string, materials: StudyMaterial) => void;
+  isPro?: boolean;
+  onRequirePro?: (pageCount: number) => void;
 }
 
-export function TextInput({ onSuccess }: TextInputProps) {
+export function TextInput({ onSuccess, isPro = false, onRequirePro }: TextInputProps) {
   const [title, setTitle] = useState('');
   const [rawText, setRawText] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -37,6 +39,13 @@ export function TextInput({ onSuccess }: TextInputProps) {
       if (file) {
         if (file.name.toLowerCase().endsWith('.pdf')) {
           const pdfResult = await extractPDFWithMetadata(file);
+          if (!isPro && pdfResult.metadata.pageCount && pdfResult.metadata.pageCount > 10) {
+            setLoading(false);
+            if (onRequirePro) {
+              onRequirePro(pdfResult.metadata.pageCount);
+              return;
+            }
+          }
           rawTextToSend = pdfResult.text;
           pdfInfo = pdfResult.metadata;
         } else {
