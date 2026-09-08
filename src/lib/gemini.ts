@@ -23,48 +23,31 @@ export function getSystemPrompt(quizCount: number, flashcardCount: number): stri
    - **Hierarchy & Node Shapes**:
      - **Center Node**: The core keyword/topic at the top, styled as a stadium shape (e.g., A([🎯 Primary Topic])).
      - **Main Branches**: 3-4 key formats or categories, styled as stadium shapes (e.g., B([📁 Main Format])).
-     - **Sub-Branches**: Target audience pain points or details, styled as standard rounded rectangles (e.g., C[💡 Sub-Topic Label]).
+     - **Sub-Branches**: Target audience pain points or details, styled as standard rounded rectangles (e.g., C[💡 Sub-Topic Label])).
      - **FAQs or Decisions**: Decision nodes or questions, styled as diamond shapes (e.g., D{❓ Question/FAQ?}).
      - **Research Nodes**: References to research materials, styled as cylinders (e.g., E[(🔍 Research Reference)]).
-   - **Rules**:
-     - Target **12 to 20 nodes** for rich detail.
-     - Include a relevant emoji icon at the start of each node label to visually guide the user.
-     - Use simple alphanumeric node IDs (A, B, C, etc.).
-     - Do NOT use parentheses, quotes, or special characters inside labels that would break Mermaid parser.
-     - Keep labels concise (under 8 words each).
-     - Use **descriptive transition labels** on connections: e.g. A -- "focuses on" --> B.
-   - **Visual Tools (Color Styling)**:
-     - Define and apply style classes at the bottom of the Mermaid code:
-       classDef center fill:#fafaf9,stroke:#1c1917,stroke-width:2px;
-       classDef branch fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
-       classDef subbranch fill:#f0fdf4,stroke:#16a34a,stroke-width:1px;
-       classDef research fill:#fff7ed,stroke:#ea580c,stroke-width:1px;
-   - **Research Links**:
-     - Attach high-quality external URLs to the research nodes using the Mermaid click command (e.g. referencing Wikipedia or official document portals):
-       click F "https://en.wikipedia.org/wiki/TopicName" "Research Source" _blank
-   - **Example format**:
-     graph TD
-         A([🎯 Digital Content]) -- "distributes into" --> B([📁 Pillar Articles])
-         A -- "produces" --> C([📁 Video Content])
-         B -- "requires" --> D[💡 Topic Structure]
-         C -- "undergoes" --> E[💡 Editing Flow]
-         D -- "checks" --> F{❓ SEO Friendly?}
-         A -- "supported by" --> G[(🔍 Research Reference)]
-         classDef center fill:#fafaf9,stroke:#1c1917,stroke-width:2px;
-         classDef branch fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
-         classDef subbranch fill:#f0fdf4,stroke:#16a34a,stroke-width:1px;
-         classDef research fill:#fff7ed,stroke:#ea580c,stroke-width:1px;
-         class A center;
-         class B,C branch;
-         class D,E,F subbranch;
-         class G research;
-         click G "https://en.wikipedia.org/wiki/Digital_content" "Research Source" _blank
+    - **Rules**:
+      - Target **8 to 14 nodes** for clear, fast rendering.
+      - Include a relevant emoji icon at the start of each node label to visually guide the user.
+      - Use simple alphanumeric node IDs (A, B, C, etc.).
+      - Do NOT use parentheses, quotes, or special characters inside labels that would break Mermaid parser.
+      - Keep labels concise (under 5 words each).
+      - Use **descriptive transition labels** on connections: e.g. A -- "focuses on" --> B.
+    - **Visual Tools (Color Styling)**:
+      - Define and apply style classes at the bottom of the Mermaid code:
+        classDef center fill:#fafaf9,stroke:#1c1917,stroke-width:2px;
+        classDef branch fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+        classDef subbranch fill:#f0fdf4,stroke:#16a34a,stroke-width:1px;
+        classDef research fill:#fff7ed,stroke:#ea580c,stroke-width:1px;
+    - **Research Links**:
+      - Attach high-quality external URLs to the research nodes using the Mermaid click command:
+        click F "https://en.wikipedia.org/wiki/TopicName" "Research Source" _blank
 
-2. **Flashcards**: Create exactly ${flashcardCount} active-recall flashcards. Each should test a specific fact, concept, or relationship from the text. Questions should be clear and answers should be concise but complete.
+2. **Flashcards**: Create exactly ${flashcardCount} active-recall flashcards. Questions should be specific and answers should be concise (1-2 sentences).
 
-3. **Quiz**: Create exactly ${quizCount} multiple-choice questions with 4 options each. Include a mix of difficulty levels. Provide a clear explanation for each correct answer.
+3. **Quiz**: Create exactly ${quizCount} multiple-choice questions with 4 options each. Include a 1-sentence explanation for each correct answer.
 
-Focus on the most important and testable content. Ensure accuracy and educational value.`;
+Focus on core concepts. Generate cleanly and concisely.`;
 }
 
 // Dynamically define the structured schema based on requested counts

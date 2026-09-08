@@ -34,20 +34,39 @@ export function TextInput({ onSuccess, isPro = false, onRequirePro }: TextInputP
 
     try {
       let rawTextToSend = rawText;
+      let fileBase64ToSend: string | undefined = undefined;
       let pdfInfo: PDFMetadata | undefined = undefined;
 
       if (file) {
         if (file.name.toLowerCase().endsWith('.pdf')) {
-          const pdfResult = await extractPDFWithMetadata(file);
-          if (!isPro && pdfResult.metadata.pageCount && pdfResult.metadata.pageCount > 10) {
-            setLoading(false);
-            if (onRequirePro) {
-              onRequirePro(pdfResult.metadata.pageCount);
-              return;
+          try {
+            const pdfResult = await extractPDFWithMetadata(file);
+            if (!isPro && pdfResult.metadata.pageCount && pdfResult.metadata.pageCount > 10) {
+              setLoading(false);
+              if (onRequirePro) {
+                onRequirePro(pdfResult.metadata.pageCount);
+                return;
+              }
             }
+            rawTextToSend = pdfResult.text;
+            pdfInfo = pdfResult.metadata;
+          } catch (pdfErr) {
+            console.warn('Client PDF extraction failed, using server fallback:', pdfErr);
+            // Fallback: convert file to base64 and let server parse it
+            fileBase64ToSend = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const res = reader.result as string;
+                resolve(res.split(',')[1] || res);
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            pdfInfo = {
+              fileName: file.name,
+              fileSize: file.size,
+            };
           }
-          rawTextToSend = pdfResult.text;
-          pdfInfo = pdfResult.metadata;
         } else {
           // TXT file extraction
           rawTextToSend = await new Promise<string>((resolve, reject) => {
@@ -72,6 +91,8 @@ export function TextInput({ onSuccess, isPro = false, onRequirePro }: TextInputP
           title: title || (file ? file.name.replace(/\.[^/.]+$/, "") : 'Pasted Document'),
           sourceType: file ? (file.name.toLowerCase().endsWith('.pdf') ? 'pdf_upload' : 'txt_upload') : 'text_paste',
           rawText: rawTextToSend || undefined,
+          fileBase64: fileBase64ToSend || undefined,
+          fileName: file?.name || undefined,
           pdfInfo,
           quizCount: Number(quizCount),
           flashcardCount: Number(flashcardCount)
@@ -83,15 +104,27 @@ export function TextInput({ onSuccess, isPro = false, onRequirePro }: TextInputP
         const errorText = await response.text();
         console.error('Server error response:', errorText);
 
-        let errorMessage = 'An unexpected server error occurred.';
+        let errorMessage = 'Ett oväntat serverfel inträffade.';
         if (response.status === 504 || response.status === 502) {
-          errorMessage = 'The request timed out. Vercel\'s free Hobby tier limits execution to 10 seconds. Try reducing the quiz or flashcard count.';
-        } else if (errorText.includes('Gemini API key is missing')) {
-          errorMessage = 'Gemini API key is missing. Please configure GEMINI_API_KEY in your Vercel Project Settings.';
-        } else if (errorText.includes('An error occurred')) {
-          errorMessage = 'A server error occurred. Please verify your Vercel deployment logs and environment variables.';
-        } else if (errorText) {
-          errorMessage = errorText.slice(0, 150);
+          errorMessage = 'Begäran tog för lång tid. Vercels gratisgräns är 10 sekunder. Prova med 5 frågor eller en kortare text.';
+        } else {
+          try {
+            const parsed = JSON.parse(errorText);
+            const errStr = parsed.error || '';
+            if (errStr.includes('prepayment credits') || errStr.includes('429')) {
+              errorMessage = 'Google AI Gemini-saldot är slut (429: Prepayment credits depleted). Lägg till krediter eller skapa en gratis nyckel på Google AI Studio.';
+            } else if (errStr.includes('Gemini API key is missing')) {
+              errorMessage = 'Gemini API-nyckel saknas i Vercel Project Settings.';
+            } else if (errStr) {
+              errorMessage = errStr;
+            }
+          } catch {
+            if (errorText.includes('prepayment credits') || errorText.includes('429')) {
+              errorMessage = 'Google AI Gemini-saldot är slut (429: Prepayment credits depleted). Fyll på krediter eller skapa en ny API-nyckel.';
+            } else if (errorText) {
+              errorMessage = errorText.slice(0, 150);
+            }
+          }
         }
 
         setError(errorMessage);
@@ -103,11 +136,20 @@ export function TextInput({ onSuccess, isPro = false, onRequirePro }: TextInputP
       if (result.success) {
         onSuccess(title || (file ? file.name.replace(/\.[^/.]+$/, "") : 'Pasted Document'), result.materials);
       } else {
-        setError(result.error);
+        const errStr = result.error || '';
+        if (errStr.includes('prepayment credits') || errStr.includes('429')) {
+          setError('Google AI Gemini-saldot är slut (429: Prepayment credits depleted). Fyll på krediter eller skapa en gratis API-nyckel på Google AI Studio.');
+        } else {
+          setError(errStr || 'Kunde inte generera studiematerial.');
+        }
       }
     } catch (err: any) {
       console.error('Document processing error:', err);
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.');
+      let msg = err instanceof Error ? err.message : 'Ett oväntat fel inträffade. Försök igen.';
+      if (msg === 'Load failed' || msg.includes('Load failed')) {
+        msg = 'Kunde inte ladda filen eller anslutningen avbröts. Prova att klistra in texten direkt.';
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
