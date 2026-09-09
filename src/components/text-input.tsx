@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { Upload, FileText, Sparkles, AlertCircle, X } from 'lucide-react';
 import type { StudyMaterial, PDFMetadata } from '@/types';
 import { extractPDFWithMetadata } from '@/lib/pdf-client';
+import { ErrorPopup } from '@/components/error-popup';
 
 interface TextInputProps {
   onSuccess: (title: string, materials: StudyMaterial) => void;
@@ -165,22 +166,14 @@ export function TextInput({ onSuccess, isPro = false, onRequirePro }: TextInputP
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {error && (
-        <div className="animate-slide-down" style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          padding: '0.75rem 1rem',
-          borderRadius: '10px',
-          backgroundColor: 'var(--color-accent-red-light)',
-          border: '1px solid rgba(220, 38, 38, 0.15)',
-          color: 'var(--color-accent-red)',
-          fontSize: '0.875rem'
-        }}>
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span style={{ flex: 1 }}>{error}</span>
-        </div>
-      )}
+      {/* Minimalist Floating Error Popup */}
+      <ErrorPopup 
+        message={error} 
+        onClose={() => setError('')} 
+        onUpgrade={() => {
+          if (onRequirePro) onRequirePro(20);
+        }} 
+      />
 
       {/* Title */}
       <div>
