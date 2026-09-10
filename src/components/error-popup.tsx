@@ -23,9 +23,12 @@ export function ErrorPopup({ message, onClose, onUpgrade, autoHideDuration = 700
 
   if (!message) return null;
 
-  const isUpgradeRelated = message.toLowerCase().includes('uppgradera') || 
+  const isUpgradeRelated = message.toLowerCase().includes('upgrade') || 
+    message.toLowerCase().includes('uppgradera') || 
     message.toLowerCase().includes('pro') || 
+    message.toLowerCase().includes('credit') ||
     message.toLowerCase().includes('krediter') ||
+    message.toLowerCase().includes('page') ||
     message.toLowerCase().includes('sidor');
 
   return (
@@ -75,7 +78,7 @@ export function ErrorPopup({ message, onClose, onUpgrade, autoHideDuration = 700
         {/* Content */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1c1917', marginBottom: '0.2rem' }}>
-            Meddelande
+            Notice
           </div>
           <p style={{ fontSize: '0.815rem', color: '#57534e', lineHeight: 1.45, margin: 0 }}>
             {message}
@@ -105,7 +108,7 @@ export function ErrorPopup({ message, onClose, onUpgrade, autoHideDuration = 700
               }}
             >
               <Sparkles style={{ width: '12px', height: '12px' }} />
-              <span>Uppgradera till Pro</span>
+              <span>Upgrade to Pro</span>
               <ArrowRight style={{ width: '12px', height: '12px' }} />
             </button>
           )}
@@ -129,7 +132,7 @@ export function ErrorPopup({ message, onClose, onUpgrade, autoHideDuration = 700
           }}
           onMouseEnter={(e) => (e.currentTarget.style.color = '#1c1917')}
           onMouseLeave={(e) => (e.currentTarget.style.color = '#a8a29e')}
-          aria-label="Stäng meddelande"
+          aria-label="Close notification"
         >
           <X style={{ width: '16px', height: '16px' }} />
         </button>

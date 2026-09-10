@@ -37,13 +37,13 @@ async function generateChunkWithRetry(
 
         const responseText = result.response.text();
         if (!responseText) {
-          throw new Error(`AI returnerade ett tomt svar för del ${chunkIndex + 1}.`);
+          throw new Error(`AI returned an empty response for part ${chunkIndex + 1}.`);
         }
 
         const cleanJsonStr = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
         const parsed = JSON.parse(cleanJsonStr);
         if (!parsed || !parsed.mermaid_code || !parsed.flashcards || !parsed.quiz) {
-          throw new Error(`Ogiltig JSON-struktur för del ${chunkIndex + 1}.`);
+          throw new Error(`Invalid JSON structure returned for part ${chunkIndex + 1}.`);
         }
 
         // Sanitize chunk Mermaid code immediately
@@ -195,9 +195,9 @@ export async function POST(request: Request) {
     let message = error instanceof Error ? error.message : 'An unexpected error occurred.';
 
     if (message.includes('503') || message.includes('high demand') || message.includes('Service Unavailable')) {
-      message = 'Google AI har för närvarande mycket hög belastning (503). Vänligen vänta några sekunder och prova igen.';
+      message = 'Google AI is currently experiencing high demand (503). Please wait a few seconds and try again.';
     } else if (message.includes('429') || message.includes('ResourceExhausted') || message.includes('quota')) {
-      message = 'Google AI kvotgräns nådd (429). Kontrollera ditt Gemini API-saldo eller prova igen strax.';
+      message = 'Google AI rate limit reached (429). Please check your Gemini API quota or try again in a moment.';
     }
 
     let failureMetrics = undefined;

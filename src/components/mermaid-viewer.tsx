@@ -83,7 +83,7 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
       } catch (err) {
         console.error('Mermaid render final error:', err);
         cleanupMermaidErrorDOM();
-        setError('Kunde inte visualisera diagrammet automatiskt. Du kan visa koden nedan.');
+        setError('Could not render the flowchart automatically. You can view the raw diagram code below.');
       }
     }
 

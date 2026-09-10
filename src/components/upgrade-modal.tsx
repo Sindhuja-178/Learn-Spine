@@ -45,14 +45,14 @@ export function UpgradeModal({ isOpen, onClose, pageCountNotice }: UpgradeModalP
       const data = await response.json();
 
       if (!response.ok || !data.success || !data.url) {
-        throw new Error(data.error || 'Kunde inte initiera betalning. Försök igen.');
+        throw new Error(data.error || 'Could not initiate checkout. Please try again.');
       }
 
       // Redirect user to Stripe Hosted Checkout
       window.location.href = data.url;
     } catch (err: unknown) {
       console.error('Checkout error:', err);
-      setError(err instanceof Error ? err.message : 'Ett fel inträffade. Försök igen.');
+      setError(err instanceof Error ? err.message : 'An error occurred. Please try again.');
       setLoading(false);
     }
   }
@@ -121,7 +121,7 @@ export function UpgradeModal({ isOpen, onClose, pageCountNotice }: UpgradeModalP
             cursor: 'pointer',
             transition: 'background-color 0.15s',
           }}
-          aria-label="Stäng"
+          aria-label="Close"
         >
           <X style={{ width: '16px', height: '16px' }} />
         </button>
@@ -145,12 +145,12 @@ export function UpgradeModal({ isOpen, onClose, pageCountNotice }: UpgradeModalP
             <Sparkles style={{ width: '12px', height: '12px', color: '#f59e0b' }} />
             LearnSpine Pro
           </span>
-          <span style={{ fontSize: '0.75rem', color: '#a8a29e' }}>Avsluta när som helst</span>
+          <span style={{ fontSize: '0.75rem', color: '#a8a29e' }}>Cancel anytime</span>
         </div>
 
         {/* Title */}
         <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#1c1917', letterSpacing: '-0.02em', margin: '0 0 0.5rem 0' }}>
-          Studera smartare med Pro
+          Study Smarter with Pro
         </h2>
 
         {/* Page Limit Warning if applicable */}
@@ -173,12 +173,12 @@ export function UpgradeModal({ isOpen, onClose, pageCountNotice }: UpgradeModalP
           >
             <Layers style={{ width: '18px', height: '18px', color: '#ea580c', flexShrink: 0, marginTop: '2px' }} />
             <span>
-              Ditt dokument innehåller <strong>{pageCountNotice} sidor</strong>. Gratisversionen stödjer upp till 10 sidor. Uppgradera till Pro för att bearbeta hela dokumentet!
+              Your document contains <strong>{pageCountNotice} pages</strong>. The free tier supports up to 10 pages. Upgrade to Pro to process the full document!
             </span>
           </div>
         ) : (
           <p style={{ fontSize: '0.875rem', color: '#78716c', margin: '0 0 0.5rem 0', lineHeight: 1.5 }}>
-            Lås upp full AI-kapacitet för kursböcker, stora PDF-dokument och obegränsade flödesschemaexporter.
+            Unlock full AI capability for textbooks, large PDF documents, and high-resolution flowchart exports.
           </p>
         )}
 
@@ -197,7 +197,7 @@ export function UpgradeModal({ isOpen, onClose, pageCountNotice }: UpgradeModalP
         >
           <div>
             <span style={{ fontSize: '2.25rem', fontWeight: 800, color: '#1c1917' }}>69 SEK</span>
-            <span style={{ fontSize: '0.85rem', color: '#78716c' }}> / månad</span>
+            <span style={{ fontSize: '0.85rem', color: '#78716c' }}> / month</span>
           </div>
           <span
             style={{
@@ -210,7 +210,7 @@ export function UpgradeModal({ isOpen, onClose, pageCountNotice }: UpgradeModalP
               border: '1px solid #a7f3d0',
             }}
           >
-            30–50 dokument/mån
+            30–50 documents/mo
           </span>
         </div>
 
@@ -231,31 +231,31 @@ export function UpgradeModal({ isOpen, onClose, pageCountNotice }: UpgradeModalP
             <div style={{ width: '22px', height: '22px', borderRadius: '9999px', backgroundColor: '#ecfdf5', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Check style={{ width: '13px', height: '13px' }} />
             </div>
-            <span><strong>Upp till 100 sidor per dokument</strong> (Hela kurskompendier)</span>
+            <span><strong>Up to 100 pages per document</strong> (Full course books)</span>
           </li>
           <li style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <div style={{ width: '22px', height: '22px', borderRadius: '9999px', backgroundColor: '#ecfdf5', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Zap style={{ width: '13px', height: '13px' }} />
             </div>
-            <span><strong>Parallell AI-chunking</strong> (Blixtsnabb bearbetning)</span>
+            <span><strong>Parallel AI Chunking</strong> (Lightning-fast processing)</span>
           </li>
           <li style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <div style={{ width: '22px', height: '22px', borderRadius: '9999px', backgroundColor: '#ecfdf5', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Download style={{ width: '13px', height: '13px' }} />
             </div>
-            <span><strong>Flödesscheman i SVG, PNG och PDF</strong> i hög upplösning</span>
+            <span><strong>Flowcharts in SVG, PNG & PDF</strong> in high resolution</span>
           </li>
           <li style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <div style={{ width: '22px', height: '22px', borderRadius: '9999px', backgroundColor: '#ecfdf5', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Check style={{ width: '13px', height: '13px' }} />
             </div>
-            <span><strong>20+ Flashcards & Fullständiga provquizzar</strong></span>
+            <span><strong>20+ Flashcards & Full Practice Quizzes</strong></span>
           </li>
           <li style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <div style={{ width: '22px', height: '22px', borderRadius: '9999px', backgroundColor: '#ecfdf5', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <ShieldCheck style={{ width: '13px', height: '13px' }} />
             </div>
-            <span><strong>Molnsparning & Obegränsad studiehistorik</strong></span>
+            <span><strong>Cloud Saving & Unlimited Study History</strong></span>
           </li>
         </ul>
 
@@ -291,11 +291,11 @@ export function UpgradeModal({ isOpen, onClose, pageCountNotice }: UpgradeModalP
           {loading ? (
             <>
               <Loader2 style={{ width: '18px', height: '18px', animation: 'spin 1s linear infinite' }} />
-              <span>Kopplar till säker betalning...</span>
+              <span>Redirecting to secure checkout...</span>
             </>
           ) : (
             <>
-              <span>Uppgradera till Pro (69 SEK/mån)</span>
+              <span>Upgrade to Pro (69 SEK/mo)</span>
               <ArrowRight style={{ width: '16px', height: '16px' }} />
             </>
           )}
@@ -304,7 +304,7 @@ export function UpgradeModal({ isOpen, onClose, pageCountNotice }: UpgradeModalP
         {/* Security Note */}
         <div style={{ marginTop: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.75rem', color: '#a8a29e' }}>
           <ShieldCheck style={{ width: '14px', height: '14px' }} />
-          <span>Säker krypterad kortbetalning via Stripe. Inga bindningstider.</span>
+          <span>Secure encrypted card payment via Stripe. Cancel anytime.</span>
         </div>
       </div>
     </div>

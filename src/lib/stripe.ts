@@ -55,7 +55,7 @@ export async function getOrCreateProPrice(): Promise<string> {
     return existingPrice.id;
   }
 
-  // Create 69 SEK/month price (6900 öre)
+  // Create 69 SEK/month price (6900 ore)
   const newPrice = await stripe.prices.create({
     product: proProduct.id,
     unit_amount: 6900,

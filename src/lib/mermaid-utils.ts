@@ -183,7 +183,7 @@ export function mergeMermaidFlowcharts(charts: string[], title: string): string 
   merged += `    class Root center;\n`;
 
   mainChunkStartNodes.forEach((node, idx) => {
-    merged += `    Root -- "Del ${idx + 1}" --> ${node}\n`;
+    merged += `    Root -- "Part ${idx + 1}" --> ${node}\n`;
   });
 
   merged += '\n' + combinedNodes + combinedStyles;
@@ -194,7 +194,7 @@ export function mergeMermaidFlowcharts(charts: string[], title: string): string 
  * Generates a clean, guaranteed-to-render fallback flowchart.
  */
 export function createFallbackMermaid(title: string): string {
-  const cleanTitle = (title || 'Studieguide').replace(/[\[\]\(\)\{\}"']/g, '');
+  const cleanTitle = (title || 'Study Guide').replace(/[\[\]\(\)\{\}"']/g, '');
   return `graph TD
     classDef center fill:#fafaf9,stroke:#1c1917,stroke-width:2px;
     classDef branch fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
@@ -203,18 +203,18 @@ export function createFallbackMermaid(title: string): string {
     Root(["🎯 ${cleanTitle}"])
     class Root center;
 
-    B1(["📖 Översikt"])
-    B2(["💡 Huvudkoncept"])
-    B3(["📝 Sammanfattning"])
+    B1(["📖 Overview"])
+    B2(["💡 Core Concepts"])
+    B3(["📝 Key Summary"])
     class B1,B2,B3 branch;
 
     Root --> B1
     Root --> B2
     Root --> B3
 
-    S1["Nyckelbegrepp och definitioner"]
-    S2["Praktiska tillämpningar och steg"]
-    S3["Viktiga slutsatser att repetera"]
+    S1["Key definitions and principles"]
+    S2["Practical applications and workflow"]
+    S3["Crucial takeaways and review"]
     class S1,S2,S3 subbranch;
 
     B1 --> S1

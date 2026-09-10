@@ -490,7 +490,7 @@ export default function DashboardPage() {
           position: 'relative'
         }}>
           <Sparkles className="w-4 h-4 text-emerald-600" />
-          <span>🎉 <strong>Välkommen till LearnSpine Pro!</strong> Ditt konto är nu uppgraderat. Du har full tillgång till alla 50–100 sidors dokument och flödesscheman.</span>
+          <span>🎉 <strong>Welcome to LearnSpine Pro!</strong> Your account is now upgraded. You have full access to 50–100 page documents and high-resolution flowcharts.</span>
           <button 
             onClick={() => setUpgradeSuccessToast(false)} 
             className="btn-ghost" 
@@ -608,7 +608,7 @@ export default function DashboardPage() {
                 }}
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Uppgradera</span>
+                <span>Upgrade</span>
               </button>
             )}
 
@@ -947,13 +947,13 @@ export default function DashboardPage() {
                 <div style={{ textAlign: 'center', maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', alignSelf: 'center', padding: '0.25rem 0.75rem', borderRadius: '9999px', backgroundColor: 'rgba(234, 88, 12, 0.1)', color: '#ea580c', fontSize: '0.8rem', fontWeight: 600 }}>
                     <Sparkles className="w-3.5 h-3.5" />
-                    Enkla och transparenta priser
+                    Simple, transparent pricing
                   </div>
                   <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--color-text-primary)' }}>
-                    Investera i dina studieresultat
+                    Invest in your learning outcomes
                   </h2>
                   <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.95rem' }}>
-                    Börja gratis och uppgradera när du vill bearbeta hela föreläsningskompendier och kursböcker.
+                    Start free and upgrade anytime to process full lecture compendiums and textbooks.
                   </p>
                 </div>
 
@@ -962,24 +962,24 @@ export default function DashboardPage() {
                   {/* Free Tier Card */}
                   <div className="card" style={{ padding: '2.5rem', backgroundColor: 'var(--color-bg-secondary)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid var(--color-border-default)', borderRadius: '24px' }}>
                     <div>
-                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Gratis</h3>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>För korta sammanfattningar och enstaka artiklar.</p>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Free</h3>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>For short summaries and individual articles.</p>
                       <div style={{ margin: '1.5rem 0' }}>
                         <span style={{ fontSize: '2.5rem', fontWeight: 800 }}>0 SEK</span>
-                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}> / alltid</span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}> / forever</span>
                       </div>
                       <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Upp till 10 sidor per dokument
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Up to 10 pages per document
                         </li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Standard flödesschemagenerering
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Standard flowchart generation
                         </li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 10 flashcards & provfrågor
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 10 flashcards & quiz questions
                         </li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 3 dokument per månad
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 3 documents per month
                         </li>
                       </ul>
                     </div>
@@ -991,40 +991,40 @@ export default function DashboardPage() {
                       className="btn-secondary" 
                       style={{ marginTop: '2rem', width: '100%', justifyContent: 'center' }}
                     >
-                      Kom igång gratis
+                      Get started free
                     </button>
                   </div>
 
                   {/* Pro Tier Card */}
                   <div className="card" style={{ padding: '2.5rem', backgroundColor: 'var(--color-bg-secondary)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '2px solid #ea580c', borderRadius: '24px', position: 'relative', boxShadow: '0 8px 30px rgba(234, 88, 12, 0.12)' }}>
                     <div style={{ position: 'absolute', top: '-12px', right: '24px', backgroundColor: '#ea580c', color: '#fff', fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.75rem', borderRadius: '9999px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Mest Populär
+                      Most Popular
                     </div>
                     <div>
                       <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>LearnSpine Pro</h3>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>För studenter som vill dominera sina kurser.</p>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>For students who want to excel in their courses.</p>
                       <div style={{ margin: '1.5rem 0' }}>
                         <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>69 SEK</span>
-                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}> / månad</span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}> / month</span>
                       </div>
                       <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Upp till 100 sidor per PDF</strong> (Hela kompendier)
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Up to 100 pages per PDF</strong> (Full course books)
                         </li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Parallell AI-chunking</strong> (Blixtsnabb hastighet)
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Parallel AI Chunking</strong> (Lightning-fast speed)
                         </li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Flödesscheman i SVG, PNG & PDF</strong>
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Flowcharts in SVG, PNG & PDF</strong>
                         </li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>20+ Flashcards & provquizzar</strong>
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>20+ Flashcards & Practice Quizzes</strong>
                         </li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 30–50 dokument per månad
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 30–50 documents per month
                         </li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Inga bindningstider — avsluta när du vill
+                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> No commitments — cancel anytime
                         </li>
                       </ul>
                     </div>
@@ -1040,7 +1040,7 @@ export default function DashboardPage() {
                       className="btn-primary" 
                       style={{ marginTop: '2rem', width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, #ea580c, #d97706)', border: 'none', color: '#fff', boxShadow: '0 4px 14px rgba(234, 88, 12, 0.3)' }}
                     >
-                      {isPro ? 'Hantera prenumeration' : 'Uppgradera till Pro (69 SEK/mån)'}
+                      {isPro ? 'Manage Subscription' : 'Upgrade to Pro (69 SEK/mo)'}
                     </button>
                   </div>
 
