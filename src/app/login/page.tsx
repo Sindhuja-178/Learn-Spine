@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { AuthModal } from '@/components/auth-modal';
+import { Logo } from '@/components/logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -53,23 +54,8 @@ export default function LoginPage() {
       backgroundColor: 'var(--color-bg-primary)',
       padding: '1rem' 
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem', cursor: 'pointer' }} onClick={() => router.push('/')}>
-        <div style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: '8px',
-          backgroundColor: 'var(--color-text-primary)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--color-bg-secondary)',
-          fontWeight: 'bold',
-          fontFamily: 'var(--font-family-display)',
-          fontSize: '1rem'
-        }}>
-          L
-        </div>
-        <span style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--color-text-primary)', letterSpacing: '-0.02em' }}>LearnSpine</span>
+      <div style={{ marginBottom: '2rem' }}>
+        <Logo href="/" size={36} />
       </div>
 
       <AuthModal 

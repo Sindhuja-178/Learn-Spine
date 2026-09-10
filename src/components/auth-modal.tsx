@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Mail, Lock, X, AlertCircle, Sparkles } from 'lucide-react';
+import { Logo } from '@/components/logo';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -115,21 +116,8 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
 
       {/* Modal Header */}
       <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <div style={{
-          width: '40px',
-          height: '40px',
-          borderRadius: '10px',
-          backgroundColor: 'var(--color-text-primary)',
-          color: 'var(--color-bg-secondary)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontWeight: 'bold',
-          fontSize: '1.25rem',
-          fontFamily: 'var(--font-family-display)',
-          marginBottom: '1rem'
-        }}>
-          L
+        <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'center' }}>
+          <Logo size={48} showText={false} />
         </div>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>
           {isSignUp ? 'Create your account' : 'Welcome back'}

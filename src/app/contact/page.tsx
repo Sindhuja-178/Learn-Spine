@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Send, ChevronLeft, CheckCircle } from 'lucide-react';
+import { Logo } from '@/components/logo';
 
 export default function ContactPage() {
   const router = useRouter();
@@ -34,23 +35,8 @@ export default function ContactPage() {
       padding: '2rem 1rem' 
     }}>
       {/* Brand Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2.5rem', cursor: 'pointer' }} onClick={() => router.push('/')}>
-        <div style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: '8px',
-          backgroundColor: 'var(--color-text-primary)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--color-bg-secondary)',
-          fontWeight: 'bold',
-          fontFamily: 'var(--font-family-display)',
-          fontSize: '1rem'
-        }}>
-          L
-        </div>
-        <span style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--color-text-primary)', letterSpacing: '-0.02em' }}>LearnSpine</span>
+      <div style={{ marginBottom: '2.5rem' }}>
+        <Logo href="/" size={36} />
       </div>
 
       {/* Back button */}

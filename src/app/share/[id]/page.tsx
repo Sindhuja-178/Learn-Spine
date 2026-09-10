@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { notFound } from 'next/navigation';
 import { StudyTabs } from '@/components/study-tabs';
+import { Logo } from '@/components/logo';
 import Link from 'next/link';
 
 export default async function SharePage({ params }: { params: Promise<{ id: string }> }) {
@@ -44,24 +45,7 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
         padding: '0 2rem'
       }}>
         <div style={{ maxWidth: '1000px', width: '100%', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
-              backgroundColor: 'var(--color-text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--color-bg-secondary)',
-              fontWeight: 'bold',
-              fontFamily: 'var(--font-family-display)',
-              fontSize: '0.9rem'
-            }}>
-              L
-            </div>
-            <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--color-text-primary)', letterSpacing: '-0.01em' }}>LearnSpine</span>
-          </Link>
+          <Logo href="/" size={30} />
           
           <span style={{
             fontWeight: 600,

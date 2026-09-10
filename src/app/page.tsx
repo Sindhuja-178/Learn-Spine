@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Logo } from '@/components/logo';
 import { InputTabs } from '@/components/input-tabs';
 import { StudyTabs } from '@/components/study-tabs';
 import { AuthModal } from '@/components/auth-modal';
@@ -525,24 +526,7 @@ export default function DashboardPage() {
               Back to Workspace
             </button>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }} onClick={handleBackToDashboard}>
-              <div style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '6px',
-                backgroundColor: 'var(--color-text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--color-bg-secondary)',
-                fontWeight: 'bold',
-                fontFamily: 'var(--font-family-display)',
-                fontSize: '0.9rem'
-              }}>
-                L
-              </div>
-              <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--color-text-primary)', letterSpacing: '-0.01em' }}>LearnSpine</span>
-            </div>
+            <Logo onClick={handleBackToDashboard} size={30} />
           )}
 
           {currentMaterials ? (
@@ -1095,24 +1079,7 @@ export default function DashboardPage() {
         marginTop: 'auto'
       }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{
-              width: '20px',
-              height: '20px',
-              borderRadius: '4px',
-              backgroundColor: 'var(--color-text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--color-bg-secondary)',
-              fontWeight: 'bold',
-              fontFamily: 'var(--font-family-display)',
-              fontSize: '0.65rem'
-            }}>
-              L
-            </div>
-            <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>LearnSpine</span>
-          </div>
+          <Logo size={24} />
           <span>© {new Date().getFullYear()} LearnSpine. All rights reserved.</span>
           <div style={{ display: 'flex', gap: '1.5rem' }}>
             <a href="#how" className="hover-link">How it works</a>
