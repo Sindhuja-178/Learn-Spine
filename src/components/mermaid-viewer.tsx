@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw, AlertTriangle } from 'lucide-react';
+import { sanitizeMermaid, createFallbackMermaid } from '@/lib/mermaid-utils';
 
 interface MermaidViewerProps {
   code: string;
@@ -15,9 +16,21 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
+  const cleanupMermaidErrorDOM = () => {
+    if (typeof document !== 'undefined') {
+      document.querySelectorAll('[id^="dmermaid"], [id^="mermaid-"]').forEach((el) => {
+        if (el.parentNode === document.body) {
+          el.remove();
+        }
+      });
+    }
+  };
+
   useEffect(() => {
     async function renderDiagram() {
       if (!containerRef.current || !code) return;
+
+      cleanupMermaidErrorDOM();
 
       try {
         setError(null);
@@ -26,6 +39,7 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'loose',
+          suppressErrorRendering: true, // Prevents Mermaid 11 from appending bomb icon to document.body
           theme: 'neutral',
           themeVariables: {
             primaryColor: '#e0e7ff', // Indigo 100
@@ -48,16 +62,36 @@ export function MermaidViewer({ code }: MermaidViewerProps) {
         });
 
         containerRef.current.innerHTML = '';
-        const uniqueId = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const { svg } = await mermaid.render(uniqueId, code);
-        containerRef.current.innerHTML = svg;
+        const uniqueId = `mermaid-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const sanitized = sanitizeMermaid(code);
+
+        try {
+          const { svg } = await mermaid.render(uniqueId, sanitized);
+          containerRef.current.innerHTML = svg;
+          cleanupMermaidErrorDOM();
+        } catch (initialErr) {
+          console.warn('Initial Mermaid render failed, attempting fallback diagram:', initialErr);
+          cleanupMermaidErrorDOM();
+
+          // Render safe fallback diagram
+          const fallbackCode = createFallbackMermaid("Process Flow");
+          const fallbackId = `mermaid-fb-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          const { svg } = await mermaid.render(fallbackId, fallbackCode);
+          containerRef.current.innerHTML = svg;
+          cleanupMermaidErrorDOM();
+        }
       } catch (err) {
-        console.error('Mermaid render error:', err);
-        setError('Failed to render the flowchart. The diagram syntax may contain errors.');
+        console.error('Mermaid render final error:', err);
+        cleanupMermaidErrorDOM();
+        setError('Kunde inte visualisera diagrammet automatiskt. Du kan visa koden nedan.');
       }
     }
 
     renderDiagram();
+
+    return () => {
+      cleanupMermaidErrorDOM();
+    };
   }, [code]);
 
   const handleZoomIn = useCallback(() => {

@@ -6,6 +6,28 @@ import type { StudyMaterial, PDFMetadata } from '@/types';
 import { extractPDFWithMetadata } from '@/lib/pdf-client';
 import { ErrorPopup } from '@/components/error-popup';
 
+function formatErrorMessage(raw: string): string {
+  if (!raw) return 'Ett fel inträffade. Försök igen.';
+  
+  if (raw.includes('503') || raw.includes('high demand') || raw.includes('Service Unavailable')) {
+    return 'Google AI har tillfälligt hög belastning (503). Vänligen vänta några sekunder och prova igen.';
+  }
+  if (raw.includes('429') || raw.includes('prepayment credits') || raw.includes('ResourceExhausted')) {
+    return 'Google AI API-kvotgräns nådd (429). Fyll på krediter på Google AI Studio eller prova igen strax.';
+  }
+  if (raw.includes('Gemini API key is missing')) {
+    return 'Gemini API-nyckel saknas i Vercel Project Settings.';
+  }
+  if (raw.includes('Load failed') || raw.includes('Failed to fetch') || raw.includes('NetworkError')) {
+    return 'Anslutningen avbröts eller filen kunde inte laddas. Kontrollera din anslutning eller klistra in texten direkt.';
+  }
+
+  // Strip out ugly Google raw trace prefixes if any
+  let clean = raw.replace(/\[GoogleGenerativeAI Error\]:\s*/gi, '');
+  clean = clean.replace(/Error fetching from https?:\/\/[^\s]+:\s*/gi, '');
+  return clean.trim() || 'Ett fel inträffade vid skapandet av studiematerial.';
+}
+
 interface TextInputProps {
   onSuccess: (title: string, materials: StudyMaterial) => void;
   isPro?: boolean;
@@ -112,23 +134,13 @@ export function TextInput({ onSuccess, isPro = false, onRequirePro }: TextInputP
           try {
             const parsed = JSON.parse(errorText);
             const errStr = parsed.error || '';
-            if (errStr.includes('prepayment credits') || errStr.includes('429')) {
-              errorMessage = 'Google AI Gemini-saldot är slut (429: Prepayment credits depleted). Lägg till krediter eller skapa en gratis nyckel på Google AI Studio.';
-            } else if (errStr.includes('Gemini API key is missing')) {
-              errorMessage = 'Gemini API-nyckel saknas i Vercel Project Settings.';
-            } else if (errStr) {
-              errorMessage = errStr;
-            }
+            errorMessage = errStr;
           } catch {
-            if (errorText.includes('prepayment credits') || errorText.includes('429')) {
-              errorMessage = 'Google AI Gemini-saldot är slut (429: Prepayment credits depleted). Fyll på krediter eller skapa en ny API-nyckel.';
-            } else if (errorText) {
-              errorMessage = errorText.slice(0, 150);
-            }
+            errorMessage = errorText;
           }
         }
 
-        setError(errorMessage);
+        setError(formatErrorMessage(errorMessage));
         return;
       }
 
@@ -137,20 +149,12 @@ export function TextInput({ onSuccess, isPro = false, onRequirePro }: TextInputP
       if (result.success) {
         onSuccess(title || (file ? file.name.replace(/\.[^/.]+$/, "") : 'Pasted Document'), result.materials);
       } else {
-        const errStr = result.error || '';
-        if (errStr.includes('prepayment credits') || errStr.includes('429')) {
-          setError('Google AI Gemini-saldot är slut (429: Prepayment credits depleted). Fyll på krediter eller skapa en gratis API-nyckel på Google AI Studio.');
-        } else {
-          setError(errStr || 'Kunde inte generera studiematerial.');
-        }
+        setError(formatErrorMessage(result.error || 'Kunde inte generera studiematerial.'));
       }
     } catch (err: any) {
       console.error('Document processing error:', err);
-      let msg = err instanceof Error ? err.message : 'Ett oväntat fel inträffade. Försök igen.';
-      if (msg === 'Load failed' || msg.includes('Load failed')) {
-        msg = 'Kunde inte ladda filen eller anslutningen avbröts. Prova att klistra in texten direkt.';
-      }
-      setError(msg);
+      const msg = err instanceof Error ? err.message : 'Ett oväntat fel inträffade. Försök igen.';
+      setError(formatErrorMessage(msg));
     } finally {
       setLoading(false);
     }

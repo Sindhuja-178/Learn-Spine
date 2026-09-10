@@ -2,9 +2,74 @@ import { NextResponse } from 'next/server';
 import { getGeminiModel, getSystemPrompt } from '@/lib/gemini';
 import { extractPDFWithMetadataServer } from '@/lib/pdf';
 import { ProcessingAgent } from '@/lib/processing-agent';
+import { mergeMermaidFlowcharts, sanitizeMermaid } from '@/lib/mermaid-utils';
 import type { PDFMetadata, Flashcard, QuizQuestion, StudyMaterial } from '@/types';
 
 export const maxDuration = 60; // Set route timeout to 60 seconds on Vercel
+
+async function generateChunkWithRetry(
+  quizCount: number,
+  flashcardCount: number,
+  promptText: string,
+  chunkIndex: number,
+  totalChunks: number,
+  agent: ProcessingAgent | null
+) {
+  const models = ['gemini-3.6-flash', 'gemini-3.5-flash'];
+  let lastError: any = null;
+
+  for (const modelName of models) {
+    if (agent) {
+      agent.setModel(modelName);
+    }
+    const maxRetries = 2;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const model = getGeminiModel(quizCount, flashcardCount, modelName);
+        const result = await model.generateContent({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: promptText }]
+            }
+          ]
+        });
+
+        const responseText = result.response.text();
+        if (!responseText) {
+          throw new Error(`AI returnerade ett tomt svar för del ${chunkIndex + 1}.`);
+        }
+
+        const cleanJsonStr = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+        const parsed = JSON.parse(cleanJsonStr);
+        if (!parsed || !parsed.mermaid_code || !parsed.flashcards || !parsed.quiz) {
+          throw new Error(`Ogiltig JSON-struktur för del ${chunkIndex + 1}.`);
+        }
+
+        // Sanitize chunk Mermaid code immediately
+        parsed.mermaid_code = sanitizeMermaid(parsed.mermaid_code);
+
+        return parsed;
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = String(err?.message || '');
+        const is503 = errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('Service Unavailable');
+        const is429 = errMsg.includes('429') || errMsg.includes('ResourceExhausted');
+
+        console.warn(`[Process Chunk ${chunkIndex + 1}/${totalChunks}] ${modelName} attempt ${attempt} failed:`, errMsg);
+
+        if ((is503 || is429) && attempt < maxRetries) {
+          const delay = 1200 * attempt + Math.random() * 400;
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        break; // failover to next model
+      }
+    }
+  }
+
+  throw lastError;
+}
 
 export async function POST(request: Request) {
   let agent: ProcessingAgent | null = null;
@@ -92,41 +157,17 @@ export async function POST(request: Request) {
     agent.recordChunks(chunks);
     console.log(`[ProcessingAgent] Document "${title}" segmented into ${chunks.length} chunks.`);
 
-    // 5. Process each chunk in parallel using Promise.all
-    const model = getGeminiModel(quizCount, flashcardCount);
+    // 5. Process each chunk in parallel with retry & dual-model failover
     const systemPrompt = getSystemPrompt(quizCount, flashcardCount);
 
     const chunkPromises = chunks.map(async (chunkText, index) => {
-      const result = await model.generateContent({
-        contents: [
-          { 
-            role: 'user', 
-            parts: [
-              { text: `${systemPrompt}\n\n[Part ${index + 1} of ${chunks.length}]\nGenerate study materials for the following segment:\n\n${chunkText}` }
-            ] 
-          }
-        ]
-      });
-
-      const responseText = result.response.text();
-      if (!responseText) {
-        throw new Error(`AI failed to generate content for part ${index + 1}.`);
-      }
-
-      // Clean up markdown block wraps if present
-      const cleanJsonStr = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-
-      const parsed = JSON.parse(cleanJsonStr);
-      if (!parsed || !parsed.mermaid_code || !parsed.flashcards || !parsed.quiz) {
-        throw new Error(`AI returned invalid structure for part ${index + 1}.`);
-      }
-
-      return parsed;
+      const promptText = `${systemPrompt}\n\n[Part ${index + 1} of ${chunks.length}]\nGenerate study materials for the following segment:\n\n${chunkText}`;
+      return generateChunkWithRetry(quizCount, flashcardCount, promptText, index, chunks.length, agent);
     });
 
     const parsedChunks = await Promise.all(chunkPromises);
 
-    // 6. Merge the results
+    // 6. Merge the results cleanly
     const mergedMermaid = mergeMermaidFlowcharts(parsedChunks.map(c => c.mermaid_code), title);
 
     const flashcardsArrays: Flashcard[][] = parsedChunks.map(c => c.flashcards || []);
@@ -151,7 +192,13 @@ export async function POST(request: Request) {
     });
   } catch (error: unknown) {
     console.error('Processing error:', error);
-    const message = error instanceof Error ? error.message : 'An unexpected error occurred.';
+    let message = error instanceof Error ? error.message : 'An unexpected error occurred.';
+
+    if (message.includes('503') || message.includes('high demand') || message.includes('Service Unavailable')) {
+      message = 'Google AI har för närvarande mycket hög belastning (503). Vänligen vänta några sekunder och prova igen.';
+    } else if (message.includes('429') || message.includes('ResourceExhausted') || message.includes('quota')) {
+      message = 'Google AI kvotgräns nådd (429). Kontrollera ditt Gemini API-saldo eller prova igen strax.';
+    }
 
     let failureMetrics = undefined;
     if (agent) {
@@ -171,95 +218,6 @@ export async function POST(request: Request) {
 }
 
 /**
- * Merges multiple Mermaid flowchart strings under a single Root node.
- */
-function mergeMermaidFlowcharts(flowcharts: string[], title: string): string {
-  if (flowcharts.length === 0) return '';
-  if (flowcharts.length === 1) return flowcharts[0];
-
-  let combinedNodes = '';
-  let combinedStyles = '';
-  const classDefs = new Set<string>();
-
-  // Add default classDefs
-  classDefs.add('classDef center fill:#fafaf9,stroke:#1c1917,stroke-width:2px;');
-  classDefs.add('classDef branch fill:#eff6ff,stroke:#2563eb,stroke-width:1px;');
-  classDefs.add('classDef subbranch fill:#f0fdf4,stroke:#16a34a,stroke-width:1px;');
-  classDefs.add('classDef research fill:#fff7ed,stroke:#ea580c,stroke-width:1px;');
-
-  const mainChunkStartNodes: string[] = [];
-
-  flowcharts.forEach((chart, index) => {
-    const lines = chart.split('\n');
-    let firstNodeId = '';
-
-    lines.forEach((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return;
-
-      // Skip graph headers
-      if (trimmed.startsWith('graph ') || trimmed.startsWith('flowchart ')) {
-        return;
-      }
-
-      // Skip classDef definitions (we declare them globally)
-      if (trimmed.startsWith('classDef ')) {
-        return;
-      }
-
-      // Prefix node IDs (A, B, C...) with chunk prefix (c0_A, c0_B...) to avoid conflicts
-      let processedLine = trimmed
-        .replace(/\b([a-zA-Z0-9_]+)(?=\(\[|\[|\{|\(\[\(|\(\()/, `c${index}_$1`)
-        .replace(/\b([a-zA-Z0-9_]+)(?=\s+--|\s+-->)/g, `c${index}_$1`)
-        .replace(/-->\s*\b([a-zA-Z0-9_]+)\b/g, `--> c${index}_$1`)
-        .replace(/class\s+([a-zA-Z0-9_,\s]+)\s+([a-zA-Z0-9_]+)/g, (match, nodeGroup, className) => {
-          const prefixedNodes = nodeGroup
-            .split(',')
-            .map((n: string) => `c${index}_${n.trim()}`)
-            .join(',');
-          return `class ${prefixedNodes} ${className}`;
-        })
-        .replace(/click\s+\b([a-zA-Z0-9_]+)\b/g, `click c${index}_$1`);
-
-      // Keep track of the first node defined in this flowchart chunk to link to Root
-      if (!firstNodeId) {
-        const nodeMatch = trimmed.match(/^([a-zA-Z0-9_]+)(?=\(\[|\[|\{|\(\[\(|\(\()/);
-        if (nodeMatch) {
-          firstNodeId = `c${index}_${nodeMatch[1]}`;
-          mainChunkStartNodes.push(firstNodeId);
-        }
-      }
-
-      if (processedLine.startsWith('class ') || processedLine.startsWith('click ')) {
-        combinedStyles += '    ' + processedLine + '\n';
-      } else {
-        combinedNodes += '    ' + processedLine + '\n';
-      }
-    });
-  });
-
-  let mergedChart = 'graph TD\n';
-  classDefs.forEach((def) => {
-    mergedChart += '    ' + def + '\n';
-  });
-  mergedChart += '\n';
-
-  const escapedTitle = title.replace(/[\[\]\(\)\{\}"]/g, ''); // strip characters that break Mermaid syntax
-  mergedChart += `    Root([🎯 ${escapedTitle}])\n`;
-  mergedChart += `    class Root center;\n`;
-  
-  mainChunkStartNodes.forEach((startNode, idx) => {
-    mergedChart += `    Root -- "Part ${idx + 1}" --> ${startNode}\n`;
-  });
-
-  mergedChart += '\n';
-  mergedChart += combinedNodes;
-  mergedChart += combinedStyles;
-
-  return mergedChart;
-}
-
-/**
  * Uniformly picks items across multiple arrays to construct a single array matching targetCount.
  */
 function distributeSelection<T>(arrays: T[][], targetCount: number): T[] {
@@ -270,7 +228,7 @@ function distributeSelection<T>(arrays: T[][], targetCount: number): T[] {
   const baseCount = Math.floor(targetCount / validArrays.length);
   let remainder = targetCount % validArrays.length;
 
-  validArrays.forEach((arr, index) => {
+  validArrays.forEach((arr) => {
     const countToTake = baseCount + (remainder > 0 ? 1 : 0);
     if (remainder > 0) remainder--;
 
