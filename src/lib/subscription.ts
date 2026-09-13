@@ -9,9 +9,49 @@ export interface UserSubscription {
 }
 
 /**
+ * Whitelist of email addresses granted complimentary lifetime LearnSpine Pro access without payment.
+ */
+export const COMPLIMENTARY_PRO_EMAILS: string[] = [
+  'artist.sindhuja@gmail.com',
+];
+
+export function isComplimentaryProEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const cleanEmail = email.trim().toLowerCase();
+  return COMPLIMENTARY_PRO_EMAILS.some(e => e.toLowerCase() === cleanEmail);
+}
+
+/**
  * Checks whether a given Supabase user has an active LearnSpine Pro subscription.
  */
-export async function checkUserSubscription(userId?: string): Promise<UserSubscription> {
+export async function checkUserSubscription(userId?: string, userEmail?: string | null): Promise<UserSubscription> {
+  // 1. Immediate check for complimentary Pro emails
+  if (isComplimentaryProEmail(userEmail)) {
+    return {
+      isPro: true,
+      status: 'active',
+      customerId: 'complimentary_pro',
+      subscriptionId: 'complimentary_pro',
+    };
+  }
+
+  // 2. If userEmail wasn't passed directly, check active Supabase session
+  if (!userEmail && supabase) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email && isComplimentaryProEmail(session.user.email)) {
+        return {
+          isPro: true,
+          status: 'active',
+          customerId: 'complimentary_pro',
+          subscriptionId: 'complimentary_pro',
+        };
+      }
+    } catch {
+      // Ignore session lookup failures
+    }
+  }
+
   if (!userId || !supabase) {
     return { isPro: false, status: 'none' };
   }

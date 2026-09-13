@@ -7,7 +7,7 @@ import { StudyTabs } from '@/components/study-tabs';
 import { AuthModal } from '@/components/auth-modal';
 import { UpgradeModal } from '@/components/upgrade-modal';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { checkUserSubscription } from '@/lib/subscription';
+import { checkUserSubscription, isComplimentaryProEmail } from '@/lib/subscription';
 import { 
   Sparkles, 
   BookOpen, 
@@ -59,6 +59,10 @@ export default function DashboardPage() {
 
   // Customer Portal handler
   const handleManageSubscription = async () => {
+    if (isComplimentaryProEmail(user?.email)) {
+      alert('Your account (artist.sindhuja@gmail.com) has complimentary lifetime LearnSpine Pro access!');
+      return;
+    }
     try {
       const res = await fetch('/api/stripe/portal', {
         method: 'POST',
@@ -134,8 +138,10 @@ export default function DashboardPage() {
           setUser(activeUser);
 
           // Check subscription status
-          if (activeUser?.id) {
-            checkUserSubscription(activeUser.id).then(sub => {
+          if (isComplimentaryProEmail(activeUser?.email)) {
+            setIsPro(true);
+          } else if (activeUser?.id) {
+            checkUserSubscription(activeUser.id, activeUser.email).then(sub => {
               setIsPro(sub.isPro);
             });
           }
@@ -191,8 +197,10 @@ export default function DashboardPage() {
         const currentUser = session?.user ?? null;
         setUser(currentUser);
 
-        if (currentUser?.id) {
-          checkUserSubscription(currentUser.id).then(sub => {
+        if (isComplimentaryProEmail(currentUser?.email)) {
+          setIsPro(true);
+        } else if (currentUser?.id) {
+          checkUserSubscription(currentUser.id, currentUser.email).then(sub => {
             setIsPro(sub.isPro);
           });
         } else {
@@ -565,7 +573,7 @@ export default function DashboardPage() {
                   fontWeight: 700,
                   cursor: 'pointer'
                 }}
-                title="Hantera prenumeration"
+                title={isComplimentaryProEmail(user?.email) ? "Complimentary Pro Member" : "Manage Subscription"}
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                 <span>PRO ⭐</span>
@@ -1015,7 +1023,11 @@ export default function DashboardPage() {
                     <button 
                       onClick={() => {
                         if (isPro) {
-                          handleManageSubscription();
+                          if (isComplimentaryProEmail(user?.email)) {
+                            alert('Your account (artist.sindhuja@gmail.com) has complimentary lifetime LearnSpine Pro access!');
+                          } else {
+                            handleManageSubscription();
+                          }
                         } else {
                           setUpgradeNoticePages(undefined);
                           setIsUpgradeModalOpen(true);
@@ -1024,7 +1036,7 @@ export default function DashboardPage() {
                       className="btn-primary" 
                       style={{ marginTop: '2rem', width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, #ea580c, #d97706)', border: 'none', color: '#fff', boxShadow: '0 4px 14px rgba(234, 88, 12, 0.3)' }}
                     >
-                      {isPro ? 'Manage Subscription' : 'Upgrade to Pro (69 SEK/mo)'}
+                      {isPro ? (isComplimentaryProEmail(user?.email) ? 'Active Pro (Complimentary)' : 'Manage Subscription') : 'Upgrade to Pro (69 SEK/mo)'}
                     </button>
                   </div>
 

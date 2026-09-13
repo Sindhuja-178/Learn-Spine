@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { stripe, getOrCreateProPrice, getOrCreateStripeCustomer } from '@/lib/stripe';
+import { isComplimentaryProEmail } from '@/lib/subscription';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,6 +8,14 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const { userId, email, returnUrl } = body;
+
+    // Check for complimentary VIP Pro email
+    if (isComplimentaryProEmail(email)) {
+      return NextResponse.json({
+        success: false,
+        error: 'This account already has complimentary lifetime Pro access. No payment is required.',
+      }, { status: 400 });
+    }
 
     // Resolve application base URL
     const requestOrigin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'https://learnspine.se';
