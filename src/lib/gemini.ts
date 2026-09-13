@@ -109,7 +109,7 @@ export function getStudyMaterialSchema(quizCount: number, flashcardCount: number
   };
 }
 
-export function getGeminiModel(quizCount: number, flashcardCount: number, modelName: string = 'gemini-3.6-flash'): GenerativeModel {
+export function getGeminiModel(quizCount: number, flashcardCount: number, modelName: string = 'gemini-3.8-flash'): GenerativeModel {
   return getGenAI().getGenerativeModel({
     model: modelName,
     generationConfig: {

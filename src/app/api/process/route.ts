@@ -15,7 +15,7 @@ async function generateChunkWithRetry(
   totalChunks: number,
   agent: ProcessingAgent | null
 ) {
-  const models = ['gemini-3.6-flash', 'gemini-3.5-flash'];
+  const models = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.7-flash'];
   let lastError: any = null;
 
   for (const modelName of models) {
@@ -54,12 +54,12 @@ async function generateChunkWithRetry(
         lastError = err;
         const errMsg = String(err?.message || '');
         const is503 = errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('Service Unavailable');
-        const is429 = errMsg.includes('429') || errMsg.includes('ResourceExhausted');
+        const is429 = errMsg.includes('429') || errMsg.includes('ResourceExhausted') || errMsg.includes('quota');
 
         console.warn(`[Process Chunk ${chunkIndex + 1}/${totalChunks}] ${modelName} attempt ${attempt} failed:`, errMsg);
 
         if ((is503 || is429) && attempt < maxRetries) {
-          const delay = 1200 * attempt + Math.random() * 400;
+          const delay = 1000 * attempt + Math.random() * 300;
           await new Promise(r => setTimeout(r, delay));
           continue;
         }
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
     });
 
     // 4. Chunking System
-    const maxChunkSize = 15000;
+    const maxChunkSize = (quizCount >= 25 || flashcardCount >= 25) ? 10000 : 15000;
     const maxChunks = 4; // limit to maximum 4 chunks to avoid API abuse/timeouts
 
     const paragraphs = finalText.split('\n');
@@ -157,24 +157,41 @@ export async function POST(request: Request) {
     agent.recordChunks(chunks);
     console.log(`[ProcessingAgent] Document "${title}" segmented into ${chunks.length} chunks.`);
 
-    // 5. Process each chunk in parallel with retry & dual-model failover
-    const systemPrompt = getSystemPrompt(quizCount, flashcardCount);
+    // 5. Process chunks with proportional quota and smart batching
+    const countForChunk = (total: number, idx: number, numChunks: number) => {
+      const base = Math.floor(total / numChunks);
+      const remainder = total % numChunks;
+      return base + (idx < remainder ? 1 : 0);
+    };
 
-    const chunkPromises = chunks.map(async (chunkText, index) => {
-      const promptText = `${systemPrompt}\n\n[Part ${index + 1} of ${chunks.length}]\nGenerate study materials for the following segment:\n\n${chunkText}`;
-      return generateChunkWithRetry(quizCount, flashcardCount, promptText, index, chunks.length, agent);
-    });
+    // Run in pairs of 2 to avoid burst 503 limits from Google API
+    const parsedChunks: any[] = [];
+    const batchSize = 2;
 
-    const parsedChunks = await Promise.all(chunkPromises);
+    for (let i = 0; i < chunks.length; i += batchSize) {
+      const batch = chunks.slice(i, i + batchSize);
+      const batchPromises = batch.map((chunkText, offset) => {
+        const index = i + offset;
+        const chunkQuizCount = Math.max(1, countForChunk(quizCount, index, chunks.length));
+        const chunkFlashcardCount = Math.max(1, countForChunk(flashcardCount, index, chunks.length));
+
+        const systemPrompt = getSystemPrompt(chunkQuizCount, chunkFlashcardCount);
+        const promptText = `${systemPrompt}\n\n[Part ${index + 1} of ${chunks.length}]\nGenerate study materials for the following segment:\n\n${chunkText}`;
+        return generateChunkWithRetry(chunkQuizCount, chunkFlashcardCount, promptText, index, chunks.length, agent);
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      parsedChunks.push(...batchResults);
+    }
 
     // 6. Merge the results cleanly
     const mergedMermaid = mergeMermaidFlowcharts(parsedChunks.map(c => c.mermaid_code), title);
 
-    const flashcardsArrays: Flashcard[][] = parsedChunks.map(c => c.flashcards || []);
-    const quizArrays: QuizQuestion[][] = parsedChunks.map(c => c.quiz || []);
+    const allFlashcards: Flashcard[] = parsedChunks.flatMap(c => c.flashcards || []);
+    const allQuiz: QuizQuestion[] = parsedChunks.flatMap(c => c.quiz || []);
 
-    const finalFlashcards = distributeSelection<Flashcard>(flashcardsArrays, flashcardCount);
-    const finalQuiz = distributeSelection<QuizQuestion>(quizArrays, quizCount);
+    const finalFlashcards = allFlashcards.slice(0, flashcardCount);
+    const finalQuiz = allQuiz.slice(0, quizCount);
 
     const materials: StudyMaterial = {
       mermaid_code: mergedMermaid,
@@ -183,7 +200,8 @@ export async function POST(request: Request) {
     };
 
     // 7. Complete Agent Metrics Logging
-    const metrics = await agent.completeSuccess(materials, systemPrompt.length);
+    const promptLength = getSystemPrompt(quizCount, flashcardCount).length;
+    const metrics = await agent.completeSuccess(materials, promptLength);
 
     return NextResponse.json({
       success: true,
@@ -215,25 +233,4 @@ export async function POST(request: Request) {
       metrics: failureMetrics,
     }, { status: 500 });
   }
-}
-
-/**
- * Uniformly picks items across multiple arrays to construct a single array matching targetCount.
- */
-function distributeSelection<T>(arrays: T[][], targetCount: number): T[] {
-  const selected: T[] = [];
-  const validArrays = arrays.filter(a => a.length > 0);
-  if (validArrays.length === 0) return selected;
-
-  const baseCount = Math.floor(targetCount / validArrays.length);
-  let remainder = targetCount % validArrays.length;
-
-  validArrays.forEach((arr) => {
-    const countToTake = baseCount + (remainder > 0 ? 1 : 0);
-    if (remainder > 0) remainder--;
-
-    selected.push(...arr.slice(0, countToTake));
-  });
-
-  return selected;
 }

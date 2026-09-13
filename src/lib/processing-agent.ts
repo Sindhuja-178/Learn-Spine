@@ -18,7 +18,7 @@ export class ProcessingAgent {
   private pdfInfo?: PDFMetadata;
   private extractionDurationMs?: number;
   private chunkSizes: number[] = [];
-  private modelName = 'gemini-3.6-flash';
+  private modelName = 'gemini-3.8-flash';
 
   constructor(options: StartJobOptions) {
     this.jobId = `job_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
