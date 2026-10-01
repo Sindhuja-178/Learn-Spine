@@ -17,16 +17,32 @@ export const stripe = new Stripe(stripeSecretKey, {
 
 /**
  * Returns the configured price ID or dynamically creates the LearnSpine Pro product & price (69 SEK/month).
+ * Validates any configured STRIPE_PRICE_ID to guarantee it exists in the active Stripe account/mode.
  */
-export async function getOrCreateProPrice(): Promise<string> {
-  // If explicitly configured in environment, use that
-  if (process.env.STRIPE_PRICE_ID?.trim()) {
-    return process.env.STRIPE_PRICE_ID.trim();
+export async function getOrCreateProPrice(forceFresh = false): Promise<string> {
+  const configuredPriceId = process.env.STRIPE_PRICE_ID?.trim();
+
+  // If explicitly configured and not forcing fresh lookup, verify it exists in the active Stripe mode/account
+  if (!forceFresh && configuredPriceId) {
+    try {
+      const price = await stripe.prices.retrieve(configuredPriceId);
+      if (price && price.active) {
+        return price.id;
+      }
+      console.warn(`[Stripe] Configured price ${configuredPriceId} is inactive, resolving alternative active price...`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[Stripe] Configured STRIPE_PRICE_ID (${configuredPriceId}) not found in current Stripe account/mode: ${msg}. Dynamically resolving or creating LearnSpine Pro price...`
+      );
+    }
   }
 
-  // Check if LearnSpine Pro product already exists
-  const products = await stripe.products.list({ active: true, limit: 20 });
-  let proProduct = products.data.find(p => p.name.toLowerCase().includes('learnspine pro'));
+  // Check if LearnSpine Pro product already exists in this Stripe account
+  const products = await stripe.products.list({ active: true, limit: 50 });
+  let proProduct = products.data.find(
+    p => p.name.toLowerCase().includes('learnspine pro') || p.metadata?.tier === 'pro'
+  );
 
   if (!proProduct) {
     proProduct = await stripe.products.create({
@@ -44,7 +60,7 @@ export async function getOrCreateProPrice(): Promise<string> {
     product: proProduct.id,
     active: true,
     currency: 'sek',
-    limit: 10,
+    limit: 20,
   });
 
   const existingPrice = prices.data.find(

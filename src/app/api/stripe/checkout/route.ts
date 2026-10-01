@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const baseUrl = returnUrl || requestOrigin;
 
     // 1. Ensure 69 SEK/month Price exists
-    const priceId = await getOrCreateProPrice();
+    let priceId = await getOrCreateProPrice();
 
     // 2. Attach or retrieve Stripe Customer if email is available
     let customerId: string | undefined = undefined;
@@ -31,34 +31,50 @@ export async function POST(request: Request) {
       customerId = customer.id;
     }
 
-    // 3. Create Stripe Checkout Session
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      customer: customerId,
-      customer_email: customerId ? undefined : email || undefined,
-      client_reference_id: userId || undefined,
-      metadata: {
-        userId: userId || '',
-        plan: 'pro_monthly_69_sek',
-      },
-      subscription_data: {
+    // 3. Helper to create Stripe Checkout Session
+    const createCheckoutSession = (targetPriceId: string) => {
+      return stripe.checkout.sessions.create({
+        mode: 'subscription',
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: targetPriceId,
+            quantity: 1,
+          },
+        ],
+        customer: customerId,
+        customer_email: customerId ? undefined : email || undefined,
+        client_reference_id: userId || undefined,
         metadata: {
           userId: userId || '',
           plan: 'pro_monthly_69_sek',
         },
-      },
-      allow_promotion_codes: true,
-      billing_address_collection: 'auto',
-      success_url: `${baseUrl}?upgrade=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}?upgrade=canceled`,
-    });
+        subscription_data: {
+          metadata: {
+            userId: userId || '',
+            plan: 'pro_monthly_69_sek',
+          },
+        },
+        allow_promotion_codes: true,
+        billing_address_collection: 'auto',
+        success_url: `${baseUrl}?upgrade=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}?upgrade=canceled`,
+      });
+    };
+
+    let session: Stripe.Checkout.Session;
+    try {
+      session = await createCheckoutSession(priceId);
+    } catch (sessionErr: unknown) {
+      const errMsg = sessionErr instanceof Error ? sessionErr.message : String(sessionErr);
+      if (errMsg.toLowerCase().includes('price') || errMsg.toLowerCase().includes('no such')) {
+        console.warn(`[Stripe Checkout] Session creation with price ${priceId} failed (${errMsg}). Forcing fresh price creation...`);
+        priceId = await getOrCreateProPrice(true);
+        session = await createCheckoutSession(priceId);
+      } else {
+        throw sessionErr;
+      }
+    }
 
     if (!session.url) {
       throw new Error('Failed to generate Stripe checkout session URL.');
