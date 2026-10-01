@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type Stripe from 'stripe';
 import { stripe, getOrCreateProPrice, getOrCreateStripeCustomer } from '@/lib/stripe';
 import { isComplimentaryProEmail } from '@/lib/subscription';
 
