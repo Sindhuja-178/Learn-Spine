@@ -13,6 +13,7 @@ export interface UserSubscription {
  */
 export const COMPLIMENTARY_PRO_EMAILS: string[] = [
   'artist.sindhuja@gmail.com',
+  'sinydav@gmail.com',
 ];
 
 export function isComplimentaryProEmail(email?: string | null): boolean {
@@ -66,21 +67,45 @@ export async function checkUserSubscription(userId?: string, userEmail?: string 
     if (error) {
       // If table does not exist yet or error occurs, fail defensively
       console.warn('[Subscription] Error checking subscription status:', error.message);
-      return { isPro: false, status: 'none' };
+    } else if (data) {
+      const isActive = data.status === 'active' || data.status === 'trialing';
+      if (isActive) {
+        return {
+          isPro: isActive,
+          status: data.status,
+          customerId: data.stripe_customer_id,
+          subscriptionId: data.stripe_subscription_id,
+          currentPeriodEnd: data.current_period_end,
+        };
+      }
     }
 
-    if (!data) {
-      return { isPro: false, status: 'none' };
+    // 3. Fallback: Check active subscription directly from Stripe API via backend sync
+    if (userEmail && typeof window !== 'undefined') {
+      try {
+        const res = await fetch('/api/stripe/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, email: userEmail }),
+        });
+        if (res.ok) {
+          const stripeStatus = await res.json();
+          if (stripeStatus.isPro) {
+            return {
+              isPro: true,
+              status: stripeStatus.status || 'active',
+              customerId: stripeStatus.customerId,
+              subscriptionId: stripeStatus.subscriptionId,
+              currentPeriodEnd: stripeStatus.currentPeriodEnd,
+            };
+          }
+        }
+      } catch (stripeErr) {
+        console.warn('[Subscription] Error querying Stripe status fallback:', stripeErr);
+      }
     }
 
-    const isActive = data.status === 'active' || data.status === 'trialing';
-    return {
-      isPro: isActive,
-      status: data.status,
-      customerId: data.stripe_customer_id,
-      subscriptionId: data.stripe_subscription_id,
-      currentPeriodEnd: data.current_period_end,
-    };
+    return { isPro: false, status: 'none' };
   } catch (err) {
     console.warn('[Subscription] Exception checking subscription:', err);
     return { isPro: false, status: 'none' };

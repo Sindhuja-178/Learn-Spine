@@ -25,12 +25,38 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
+  const [resending, setResending] = useState(false);
+  const [showResend, setShowResend] = useState(false);
+
   if (!isOpen) return null;
+
+  async function handleResendEmail() {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !supabase) return;
+    setResending(true);
+    setError('');
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: cleanEmail,
+      });
+      if (error) {
+        setError(error.message);
+      } else {
+        setMessage(`Verification link resent to ${cleanEmail}. Please check your inbox and spam folder.`);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Could not resend verification email.');
+    } finally {
+      setResending(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setMessage('');
+    setShowResend(false);
     setLoading(true);
 
     if (!supabase) {
@@ -39,11 +65,13 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
       return;
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
       if (isSignUp) {
         const redirectUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
         const { data, error: signUpError } = await supabase.auth.signUp({
-          email,
+          email: cleanEmail,
           password,
           options: {
             emailRedirectTo: redirectUrl,
@@ -58,16 +86,22 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
           if (onClose) onClose();
         } else {
           // Needs verification
-          setMessage('Check your email inbox for a validation link to complete registration.');
+          setMessage(`Check your email inbox at ${cleanEmail} for a validation link to complete registration.`);
+          setShowResend(true);
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
+          email: cleanEmail,
           password,
         });
 
         if (signInError) {
-          setError(signInError.message);
+          if (signInError.message.toLowerCase().includes('email not confirmed')) {
+            setError('Your email is not verified yet. Please check your inbox (and spam folder) for the verification link, or click below to resend it.');
+            setShowResend(true);
+          } else {
+            setError(signInError.message);
+          }
         } else {
           onSuccess();
           if (onClose) onClose();
@@ -85,7 +119,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
       className="card animate-scale-in" 
       style={{
         width: '100%',
-        maxWidth: '400px',
+        maxWidth: '420px',
         backgroundColor: 'var(--color-bg-secondary)',
         position: 'relative',
         padding: '2.5rem',
@@ -115,7 +149,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
       )}
 
       {/* Modal Header */}
-      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+      <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
         <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'center' }}>
           <Logo size={48} showText={false} />
         </div>
@@ -123,44 +157,163 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
           {isSignUp ? 'Create your account' : 'Welcome back'}
         </h2>
         <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-          {isSignUp ? 'Sign up to generate study guides' : 'Sign in to access your saved guides'}
+          {isSignUp ? 'Sign up to generate and save your study guides' : 'Sign in to access your Pro features & study guides'}
         </p>
+      </div>
+
+      {/* Prominent Tab Switcher */}
+      <div style={{
+        display: 'flex',
+        backgroundColor: 'var(--color-bg-tertiary, #f3f4f6)',
+        borderRadius: '12px',
+        padding: '4px',
+        marginBottom: '1.5rem'
+      }}>
+        <button
+          type="button"
+          onClick={() => {
+            setIsSignUp(false);
+            setError('');
+            setMessage('');
+            setShowResend(false);
+          }}
+          style={{
+            flex: 1,
+            padding: '0.55rem',
+            borderRadius: '9px',
+            fontSize: '0.85rem',
+            fontWeight: !isSignUp ? 600 : 500,
+            border: 'none',
+            backgroundColor: !isSignUp ? '#ffffff' : 'transparent',
+            color: !isSignUp ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+            boxShadow: !isSignUp ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            cursor: 'pointer',
+            transition: 'all 0.15s'
+          }}
+        >
+          Sign In
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setIsSignUp(true);
+            setError('');
+            setMessage('');
+            setShowResend(false);
+          }}
+          style={{
+            flex: 1,
+            padding: '0.55rem',
+            borderRadius: '9px',
+            fontSize: '0.85rem',
+            fontWeight: isSignUp ? 600 : 500,
+            border: 'none',
+            backgroundColor: isSignUp ? '#ffffff' : 'transparent',
+            color: isSignUp ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+            boxShadow: isSignUp ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            cursor: 'pointer',
+            transition: 'all 0.15s'
+          }}
+        >
+          Create Account
+        </button>
       </div>
 
       {/* Info/Message Notifications */}
       {error && (
         <div className="animate-slide-down" style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          padding: '0.75rem 1rem',
+          padding: '0.85rem 1rem',
           borderRadius: '12px',
           backgroundColor: 'var(--color-accent-red-light)',
-          border: '1px solid rgba(220, 38, 38, 0.1)',
+          border: '1px solid rgba(220, 38, 38, 0.15)',
           color: 'var(--color-accent-red)',
           fontSize: '0.85rem',
-          marginBottom: '1.5rem'
+          marginBottom: '1.25rem',
+          lineHeight: 1.45
         }}>
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+            <AlertCircle className="w-4 h-4 shrink-0" style={{ marginTop: '2px' }} />
+            <div>{error}</div>
+          </div>
+          {showResend && (
+            <div style={{ marginTop: '0.75rem', paddingLeft: '1.5rem' }}>
+              <button
+                type="button"
+                onClick={handleResendEmail}
+                disabled={resending}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-accent-red)',
+                  fontWeight: 600,
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontSize: '0.8rem'
+                }}
+              >
+                {resending ? 'Sending...' : 'Click here to resend verification email'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {message && (
         <div className="animate-slide-down" style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          padding: '0.75rem 1rem',
+          padding: '0.85rem 1rem',
           borderRadius: '12px',
           backgroundColor: 'var(--color-accent-green-light)',
-          border: '1px solid rgba(22, 163, 74, 0.1)',
+          border: '1px solid rgba(22, 163, 74, 0.15)',
           color: 'var(--color-accent-green)',
           fontSize: '0.85rem',
-          marginBottom: '1.5rem'
+          marginBottom: '1.25rem',
+          lineHeight: 1.45
         }}>
-          <Sparkles className="w-4 h-4 shrink-0" />
-          <span>{message}</span>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+            <Sparkles className="w-4 h-4 shrink-0" style={{ marginTop: '2px' }} />
+            <div>{message}</div>
+          </div>
+          {showResend && (
+            <div style={{ marginTop: '0.75rem', display: 'flex', gap: '1rem', alignItems: 'center', paddingLeft: '1.5rem', fontSize: '0.8rem' }}>
+              <button
+                type="button"
+                onClick={handleResendEmail}
+                disabled={resending}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-accent-green)',
+                  fontWeight: 600,
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  padding: 0
+                }}
+              >
+                {resending ? 'Sending...' : 'Resend link'}
+              </button>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSignUp(false);
+                  setMessage('');
+                  setError('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-accent-green)',
+                  fontWeight: 600,
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  padding: 0
+                }}
+              >
+                Switch to Sign In
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -256,6 +409,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
             setIsSignUp(!isSignUp);
             setError('');
             setMessage('');
+            setShowResend(false);
           }}
           style={{
             background: 'none',
