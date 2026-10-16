@@ -27,8 +27,35 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
 
   const [resending, setResending] = useState(false);
   const [showResend, setShowResend] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
 
   if (!isOpen) return null;
+
+  async function handleForgotPassword() {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !supabase) {
+      setError('Please enter your email address to receive password reset instructions.');
+      return;
+    }
+    setSendingReset(true);
+    setError('');
+    setMessage('');
+    try {
+      const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined;
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: redirectUrl,
+      });
+      if (resetError) {
+        setError(resetError.message);
+      } else {
+        setMessage(`Password reset email sent to ${cleanEmail}. Please check your inbox and spam folder.`);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Could not send password reset email.');
+    } finally {
+      setSendingReset(false);
+    }
+  }
 
   async function handleResendEmail() {
     const cleanEmail = email.trim().toLowerCase();
@@ -80,6 +107,10 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
 
         if (signUpError) {
           setError(signUpError.message);
+        } else if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          // Supabase returns identities: [] when the email is ALREADY registered in the database
+          setError(`An account with ${cleanEmail} already exists! Switched to Sign In — please enter your password, or click "Forgot password?".`);
+          setIsSignUp(false);
         } else if (data.user && data.session) {
           // Instantly logged in
           onSuccess();
@@ -339,9 +370,28 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
         </div>
 
         <div>
-          <label htmlFor="auth-password" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-secondary)', marginBottom: '0.375rem' }}>
-            Password
-          </label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+            <label htmlFor="auth-password" style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>
+              Password
+            </label>
+            {!isSignUp && (
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={sendingReset}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-text-muted)',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+              >
+                {sendingReset ? 'Sending reset...' : 'Forgot password?'}
+              </button>
+            )}
+          </div>
           <div style={{ position: 'relative' }}>
             <Lock className="w-4 h-4" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
             <input
