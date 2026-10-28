@@ -54,8 +54,8 @@ export async function POST(request: Request) {
           subscription: activeSub ? {
             id: activeSub.id,
             status: activeSub.status,
-            currentPeriodStart: new Date(activeSub.current_period_start * 1000).toISOString(),
-            currentPeriodEnd: new Date(activeSub.current_period_end * 1000).toISOString(),
+            currentPeriodStart: new Date(((activeSub as any).current_period_start || Date.now() / 1000) * 1000).toISOString(),
+            currentPeriodEnd: new Date(((activeSub as any).current_period_end || Date.now() / 1000) * 1000).toISOString(),
             plan: activeSub.items.data[0]?.price?.nickname || activeSub.items.data[0]?.price?.id,
             amountSEK: (activeSub.items.data[0]?.price?.unit_amount || 0) / 100,
           } : null,
