@@ -110,6 +110,16 @@ export default function DashboardPage() {
     const configured = isSupabaseConfigured();
     setDbConfigured(configured);
 
+    // Forward recovery tokens directly to reset password page
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash || '';
+      const params = new URLSearchParams(window.location.search);
+      if (hash.includes('type=recovery') || params.get('type') === 'recovery') {
+        window.location.href = `/reset-password${window.location.search}${hash}`;
+        return;
+      }
+    }
+
     const initializeUserAndHistory = async () => {
       let activeUser = null;
 

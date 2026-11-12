@@ -8,21 +8,33 @@ import { Logo } from '@/components/logo';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('mode') === 'signup' || window.location.pathname.includes('/signup')) {
+      const m = params.get('mode');
+      if (m === 'signup' || window.location.pathname.includes('/signup')) {
         setMode('signup');
+      } else if (m === 'forgot' || window.location.pathname.includes('/forgot-password') || params.get('forgot') === 'true') {
+        setMode('forgot');
+      }
+
+      // If user arrived with a recovery token or code in URL, forward to /reset-password
+      const hash = window.location.hash || '';
+      const code = params.get('code');
+      if (hash.includes('type=recovery') || code) {
+        router.push(`/reset-password${window.location.search}${hash}`);
+        return;
       }
     }
 
     async function checkUser() {
       if (supabase) {
+        const hash = typeof window !== 'undefined' ? window.location.hash : '';
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
+        if (session?.user && !hash.includes('type=recovery')) {
           router.push('/');
           return;
         }

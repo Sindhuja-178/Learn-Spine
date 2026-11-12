@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Mail, Lock, X, AlertCircle, Sparkles } from 'lucide-react';
+import { Mail, Lock, X, AlertCircle, Sparkles, ArrowLeft, KeyRound, CheckCircle2 } from 'lucide-react';
 import { Logo } from '@/components/logo';
 
 interface AuthModalProps {
@@ -10,15 +10,22 @@ interface AuthModalProps {
   onClose?: () => void;
   onSuccess: () => void;
   isFullPage?: boolean;
-  initialView?: 'signin' | 'signup';
+  initialView?: 'signin' | 'signup' | 'forgot';
 }
 
-export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, initialView = 'signin' }: AuthModalProps) {
-  const [isSignUp, setIsSignUp] = useState(initialView === 'signup');
+export function AuthModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  isFullPage = false,
+  initialView = 'signin',
+}: AuthModalProps) {
+  const [view, setView] = useState<'signin' | 'signup' | 'forgot'>(initialView);
 
   useEffect(() => {
-    setIsSignUp(initialView === 'signup');
+    setView(initialView);
   }, [initialView]);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,30 +35,41 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
   const [resending, setResending] = useState(false);
   const [showResend, setShowResend] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   if (!isOpen) return null;
 
-  async function handleForgotPassword() {
+  async function handleSendPasswordReset(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !supabase) {
+    if (!cleanEmail) {
       setError('Please enter your email address to receive password reset instructions.');
       return;
     }
+    if (!supabase) {
+      setError('Authentication service is not configured.');
+      return;
+    }
+
     setSendingReset(true);
     setError('');
     setMessage('');
+
     try {
-      const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined;
+      const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
         redirectTo: redirectUrl,
       });
+
       if (resetError) {
         setError(resetError.message);
       } else {
-        setMessage(`Password reset email sent to ${cleanEmail}. Please check your inbox and spam folder.`);
+        setResetSent(true);
+        setMessage(`Password reset instructions sent to ${cleanEmail}. Please check your inbox and spam folder.`);
       }
-    } catch (err: any) {
-      setError(err?.message || 'Could not send password reset email.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not send password reset email.';
+      setError(msg);
     } finally {
       setSendingReset(false);
     }
@@ -63,17 +81,18 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
     setResending(true);
     setError('');
     try {
-      const { error } = await supabase.auth.resend({
+      const { error: resendErr } = await supabase.auth.resend({
         type: 'signup',
         email: cleanEmail,
       });
-      if (error) {
-        setError(error.message);
+      if (resendErr) {
+        setError(resendErr.message);
       } else {
         setMessage(`Verification link resent to ${cleanEmail}. Please check your inbox and spam folder.`);
       }
-    } catch (err: any) {
-      setError(err?.message || 'Could not resend verification email.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not resend verification email.';
+      setError(msg);
     } finally {
       setResending(false);
     }
@@ -95,14 +114,14 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
     const cleanEmail = email.trim().toLowerCase();
 
     try {
-      if (isSignUp) {
+      if (view === 'signup') {
         const redirectUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: cleanEmail,
           password,
           options: {
             emailRedirectTo: redirectUrl,
-          }
+          },
         });
 
         if (signUpError) {
@@ -110,7 +129,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
         } else if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           // Supabase returns identities: [] when the email is ALREADY registered in the database
           setError(`An account with ${cleanEmail} already exists! Switched to Sign In — please enter your password, or click "Forgot password?".`);
-          setIsSignUp(false);
+          setView('signin');
         } else if (data.user && data.session) {
           // Instantly logged in
           onSuccess();
@@ -138,16 +157,17 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
           if (onClose) onClose();
         }
       }
-    } catch (err: any) {
-      setError(err?.message || 'An unexpected authentication error occurred.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'An unexpected authentication error occurred.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
   }
 
   const cardContent = (
-    <div 
-      className="card animate-scale-in" 
+    <div
+      className="card animate-scale-in"
       style={{
         width: '100%',
         maxWidth: '420px',
@@ -155,7 +175,8 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
         position: 'relative',
         padding: '2.5rem',
         boxShadow: 'var(--shadow-lg)',
-        border: '1px solid var(--color-border-default)'
+        border: '1px solid var(--color-border-default)',
+        borderRadius: '24px',
       }}
     >
       {/* Close Button - Only show if not full page */}
@@ -170,10 +191,10 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
             padding: '0.35rem',
             borderRadius: '9999px',
             color: 'var(--color-text-muted)',
-            transition: 'color 0.15s'
+            transition: 'color 0.15s',
           }}
-          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-text-primary)'}
-          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
         >
           <X className="w-5 h-5" />
         </button>
@@ -184,84 +205,140 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
         <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'center' }}>
           <Logo size={48} showText={false} />
         </div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>
-          {isSignUp ? 'Create your account' : 'Welcome back'}
-        </h2>
-        <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-          {isSignUp ? 'Sign up to generate and save your study guides' : 'Sign in to access your Pro features & study guides'}
-        </p>
+
+        {view === 'forgot' ? (
+          <>
+            <h2 style={{ fontSize: '1.45rem', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+              <KeyRound className="w-5 h-5 text-amber-600" />
+              Reset your password
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', lineHeight: 1.45 }}>
+              Enter your account email to receive a secure link to create a new password.
+            </p>
+          </>
+        ) : (
+          <>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>
+              {view === 'signup' ? 'Create your account' : 'Welcome back'}
+            </h2>
+            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
+              {view === 'signup'
+                ? 'Sign up to generate and save your study guides'
+                : 'Sign in to access your Pro features & study guides'}
+            </p>
+          </>
+        )}
       </div>
 
-      {/* Prominent Tab Switcher */}
-      <div style={{
-        display: 'flex',
-        backgroundColor: 'var(--color-bg-tertiary, #f3f4f6)',
-        borderRadius: '12px',
-        padding: '4px',
-        marginBottom: '1.5rem'
-      }}>
-        <button
-          type="button"
-          onClick={() => {
-            setIsSignUp(false);
-            setError('');
-            setMessage('');
-            setShowResend(false);
-          }}
+      {/* Navigation Switcher / Back Button */}
+      {view === 'forgot' ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setView('signin');
+              setError('');
+              setMessage('');
+              setShowResend(false);
+              setResetSent(false);
+            }}
+            className="btn-ghost"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              fontSize: '0.825rem',
+              color: 'var(--color-text-secondary)',
+              padding: '0.35rem 0.6rem',
+              borderRadius: '8px',
+              fontWeight: 500,
+            }}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Sign In
+          </button>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Recovery
+          </span>
+        </div>
+      ) : (
+        <div
           style={{
-            flex: 1,
-            padding: '0.55rem',
-            borderRadius: '9px',
-            fontSize: '0.85rem',
-            fontWeight: !isSignUp ? 600 : 500,
-            border: 'none',
-            backgroundColor: !isSignUp ? '#ffffff' : 'transparent',
-            color: !isSignUp ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-            boxShadow: !isSignUp ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            cursor: 'pointer',
-            transition: 'all 0.15s'
+            display: 'flex',
+            backgroundColor: 'var(--color-bg-tertiary, #f3f4f6)',
+            borderRadius: '12px',
+            padding: '4px',
+            marginBottom: '1.5rem',
           }}
         >
-          Sign In
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setIsSignUp(true);
-            setError('');
-            setMessage('');
-            setShowResend(false);
-          }}
-          style={{
-            flex: 1,
-            padding: '0.55rem',
-            borderRadius: '9px',
-            fontSize: '0.85rem',
-            fontWeight: isSignUp ? 600 : 500,
-            border: 'none',
-            backgroundColor: isSignUp ? '#ffffff' : 'transparent',
-            color: isSignUp ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
-            boxShadow: isSignUp ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            cursor: 'pointer',
-            transition: 'all 0.15s'
-          }}
-        >
-          Create Account
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => {
+              setView('signin');
+              setError('');
+              setMessage('');
+              setShowResend(false);
+              setResetSent(false);
+            }}
+            style={{
+              flex: 1,
+              padding: '0.55rem',
+              borderRadius: '9px',
+              fontSize: '0.85rem',
+              fontWeight: view === 'signin' ? 600 : 500,
+              border: 'none',
+              backgroundColor: view === 'signin' ? '#ffffff' : 'transparent',
+              color: view === 'signin' ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+              boxShadow: view === 'signin' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setView('signup');
+              setError('');
+              setMessage('');
+              setShowResend(false);
+              setResetSent(false);
+            }}
+            style={{
+              flex: 1,
+              padding: '0.55rem',
+              borderRadius: '9px',
+              fontSize: '0.85rem',
+              fontWeight: view === 'signup' ? 600 : 500,
+              border: 'none',
+              backgroundColor: view === 'signup' ? '#ffffff' : 'transparent',
+              color: view === 'signup' ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+              boxShadow: view === 'signup' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            Create Account
+          </button>
+        </div>
+      )}
 
       {/* Info/Message Notifications */}
       {error && (
-        <div className="animate-slide-down" style={{
-          padding: '0.85rem 1rem',
-          borderRadius: '12px',
-          backgroundColor: 'var(--color-accent-red-light)',
-          border: '1px solid rgba(220, 38, 38, 0.15)',
-          color: 'var(--color-accent-red)',
-          fontSize: '0.85rem',
-          marginBottom: '1.25rem',
-          lineHeight: 1.45
-        }}>
+        <div
+          className="animate-slide-down"
+          style={{
+            padding: '0.85rem 1rem',
+            borderRadius: '12px',
+            backgroundColor: 'var(--color-accent-red-light)',
+            border: '1px solid rgba(220, 38, 38, 0.15)',
+            color: 'var(--color-accent-red)',
+            fontSize: '0.85rem',
+            marginBottom: '1.25rem',
+            lineHeight: 1.45,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
             <AlertCircle className="w-4 h-4 shrink-0" style={{ marginTop: '2px' }} />
             <div>{error}</div>
@@ -280,7 +357,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
                   textDecoration: 'underline',
                   cursor: 'pointer',
                   padding: 0,
-                  fontSize: '0.8rem'
+                  fontSize: '0.8rem',
                 }}
               >
                 {resending ? 'Sending...' : 'Click here to resend verification email'}
@@ -291,18 +368,25 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
       )}
 
       {message && (
-        <div className="animate-slide-down" style={{
-          padding: '0.85rem 1rem',
-          borderRadius: '12px',
-          backgroundColor: 'var(--color-accent-green-light)',
-          border: '1px solid rgba(22, 163, 74, 0.15)',
-          color: 'var(--color-accent-green)',
-          fontSize: '0.85rem',
-          marginBottom: '1.25rem',
-          lineHeight: 1.45
-        }}>
+        <div
+          className="animate-slide-down"
+          style={{
+            padding: '0.85rem 1rem',
+            borderRadius: '12px',
+            backgroundColor: 'var(--color-accent-green-light)',
+            border: '1px solid rgba(22, 163, 74, 0.15)',
+            color: 'var(--color-accent-green)',
+            fontSize: '0.85rem',
+            marginBottom: '1.25rem',
+            lineHeight: 1.45,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-            <Sparkles className="w-4 h-4 shrink-0" style={{ marginTop: '2px' }} />
+            {resetSent ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" style={{ marginTop: '2px' }} />
+            ) : (
+              <Sparkles className="w-4 h-4 shrink-0" style={{ marginTop: '2px' }} />
+            )}
             <div>{message}</div>
           </div>
           {showResend && (
@@ -318,7 +402,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
                   fontWeight: 600,
                   textDecoration: 'underline',
                   cursor: 'pointer',
-                  padding: 0
+                  padding: 0,
                 }}
               >
                 {resending ? 'Sending...' : 'Resend link'}
@@ -327,7 +411,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
               <button
                 type="button"
                 onClick={() => {
-                  setIsSignUp(false);
+                  setView('signin');
                   setMessage('');
                   setError('');
                 }}
@@ -338,7 +422,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
                   fontWeight: 600,
                   textDecoration: 'underline',
                   cursor: 'pointer',
-                  padding: 0
+                  padding: 0,
                 }}
               >
                 Switch to Sign In
@@ -348,130 +432,281 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
         </div>
       )}
 
-      {/* Input Form */}
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div>
-          <label htmlFor="auth-email" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-secondary)', marginBottom: '0.375rem' }}>
-            Email Address
-          </label>
-          <div style={{ position: 'relative' }}>
-            <Mail className="w-4 h-4" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
-            <input
-              id="auth-email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input-field"
-              style={{ paddingLeft: '2.75rem' }}
-              placeholder="you@example.com"
-            />
-          </div>
-        </div>
-
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
-            <label htmlFor="auth-password" style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>
-              Password
+      {/* FORGOT PASSWORD FORM */}
+      {view === 'forgot' ? (
+        <form onSubmit={handleSendPasswordReset} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div>
+            <label
+              htmlFor="auth-forgot-email"
+              style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-secondary)', marginBottom: '0.375rem' }}
+            >
+              Account Email Address
             </label>
-            {!isSignUp && (
+            <div style={{ position: 'relative' }}>
+              <Mail
+                className="w-4 h-4"
+                style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}
+              />
+              <input
+                id="auth-forgot-email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="input-field"
+                style={{ paddingLeft: '2.75rem' }}
+                placeholder="you@example.com"
+                disabled={sendingReset || resetSent}
+              />
+            </div>
+            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.35rem', lineHeight: 1.4 }}>
+              We will send you a password recovery link that lets you choose a new password.
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={sendingReset || resetSent}
+            style={{ width: '100%', padding: '0.75rem 1.5rem', marginTop: '0.25rem' }}
+          >
+            {sendingReset ? (
+              <span className="loading-spinner">
+                <span className="dot" />
+                <span className="dot" />
+                <span className="dot" />
+              </span>
+            ) : resetSent ? (
+              'Reset Link Sent ✓'
+            ) : (
+              'Send Password Reset Link'
+            )}
+          </button>
+
+          {resetSent && (
+            <div style={{ textAlign: 'center', marginTop: '0.25rem' }}>
               <button
                 type="button"
-                onClick={handleForgotPassword}
+                onClick={handleSendPasswordReset}
                 disabled={sendingReset}
                 style={{
                   background: 'none',
                   border: 'none',
                   color: 'var(--color-text-muted)',
-                  fontSize: '0.75rem',
+                  fontSize: '0.78rem',
                   cursor: 'pointer',
-                  textDecoration: 'underline'
+                  textDecoration: 'underline',
                 }}
               >
-                {sendingReset ? 'Sending reset...' : 'Forgot password?'}
+                {sendingReset ? 'Sending...' : "Didn't receive it? Click to resend link"}
               </button>
-            )}
-          </div>
-          <div style={{ position: 'relative' }}>
-            <Lock className="w-4 h-4" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
-            <input
-              id="auth-password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-field"
-              style={{ paddingLeft: '2.75rem' }}
-              placeholder="••••••••"
-              minLength={6}
-            />
-          </div>
-        </div>
-
-        {isSignUp && (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginTop: '0.25rem' }}>
-            <input 
-              id="gdpr-consent" 
-              type="checkbox" 
-              required 
-              style={{ marginTop: '0.2rem', cursor: 'pointer' }}
-            />
-            <label htmlFor="gdpr-consent" style={{ fontSize: '0.775rem', color: 'var(--color-text-secondary)', lineHeight: 1.4, cursor: 'pointer' }}>
-              I agree to the{' '}
-              <a href="/privacy" target="_blank" style={{ textDecoration: 'underline', color: 'var(--color-text-primary)', fontWeight: 600 }}>
-                Privacy Policy
-              </a>{' '}
-              and allow LearnSpine to process my documents.
-            </label>
-          </div>
-        )}
-
-        <button
-          type="submit"
-          className="btn-primary"
-          disabled={loading}
-          style={{ width: '100%', padding: '0.75rem 1.5rem', marginTop: '0.5rem' }}
-        >
-          {loading ? (
-            <span className="loading-spinner">
-              <span className="dot" />
-              <span className="dot" />
-              <span className="dot" />
-            </span>
-          ) : (
-            isSignUp ? 'Sign Up' : 'Sign In'
+            </div>
           )}
-        </button>
-      </form>
+        </form>
+      ) : (
+        /* SIGN IN / SIGN UP FORM */
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div>
+            <label
+              htmlFor="auth-email"
+              style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-secondary)', marginBottom: '0.375rem' }}
+            >
+              Email Address
+            </label>
+            <div style={{ position: 'relative' }}>
+              <Mail
+                className="w-4 h-4"
+                style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}
+              />
+              <input
+                id="auth-email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="input-field"
+                style={{ paddingLeft: '2.75rem' }}
+                placeholder="you@example.com"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+              <label
+                htmlFor="auth-password"
+                style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}
+              >
+                Password
+              </label>
+              {view === 'signin' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setView('forgot');
+                    setError('');
+                    setMessage('');
+                    setShowResend(false);
+                    setResetSent(false);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#ea580c',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Forgot password?
+                </button>
+              )}
+            </div>
+            <div style={{ position: 'relative' }}>
+              <Lock
+                className="w-4 h-4"
+                style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}
+              />
+              <input
+                id="auth-password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input-field"
+                style={{ paddingLeft: '2.75rem' }}
+                placeholder="••••••••"
+                minLength={6}
+              />
+            </div>
+          </div>
+
+          {view === 'signup' && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginTop: '0.25rem' }}>
+              <input
+                id="gdpr-consent"
+                type="checkbox"
+                required
+                style={{ marginTop: '0.2rem', cursor: 'pointer' }}
+              />
+              <label
+                htmlFor="gdpr-consent"
+                style={{ fontSize: '0.775rem', color: 'var(--color-text-secondary)', lineHeight: 1.4, cursor: 'pointer' }}
+              >
+                I agree to the{' '}
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  style={{ textDecoration: 'underline', color: 'var(--color-text-primary)', fontWeight: 600 }}
+                >
+                  Privacy Policy
+                </a>{' '}
+                and allow LearnSpine to process my documents.
+              </label>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={loading}
+            style={{ width: '100%', padding: '0.75rem 1.5rem', marginTop: '0.5rem' }}
+          >
+            {loading ? (
+              <span className="loading-spinner">
+                <span className="dot" />
+                <span className="dot" />
+                <span className="dot" />
+              </span>
+            ) : view === 'signup' ? (
+              'Sign Up'
+            ) : (
+              'Sign In'
+            )}
+          </button>
+        </form>
+      )}
 
       {/* Mode Toggle Footer */}
-      <div style={{
-        textAlign: 'center',
-        marginTop: '1.5rem',
-        paddingTop: '1.5rem',
-        borderTop: '1px solid var(--color-border-default)',
-        fontSize: '0.85rem',
-        color: 'var(--color-text-secondary)'
-      }}>
-        {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-        <button
-          onClick={() => {
-            setIsSignUp(!isSignUp);
-            setError('');
-            setMessage('');
-            setShowResend(false);
-          }}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--color-text-primary)',
-            fontWeight: 600,
-            cursor: 'pointer',
-            textDecoration: 'underline'
-          }}
-        >
-          {isSignUp ? 'Sign In' : 'Sign Up'}
-        </button>
+      <div
+        style={{
+          textAlign: 'center',
+          marginTop: '1.5rem',
+          paddingTop: '1.5rem',
+          borderTop: '1px solid var(--color-border-default)',
+          fontSize: '0.85rem',
+          color: 'var(--color-text-secondary)',
+        }}
+      >
+        {view === 'forgot' ? (
+          <>
+            Remember your password?{' '}
+            <button
+              onClick={() => {
+                setView('signin');
+                setError('');
+                setMessage('');
+                setShowResend(false);
+                setResetSent(false);
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-text-primary)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              Sign In
+            </button>
+          </>
+        ) : view === 'signup' ? (
+          <>
+            Already have an account?{' '}
+            <button
+              onClick={() => {
+                setView('signin');
+                setError('');
+                setMessage('');
+                setShowResend(false);
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-text-primary)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              Sign In
+            </button>
+          </>
+        ) : (
+          <>
+            Don&apos;t have an account?{' '}
+            <button
+              onClick={() => {
+                setView('signup');
+                setError('');
+                setMessage('');
+                setShowResend(false);
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-text-primary)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              Sign Up
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -481,18 +716,20 @@ export function AuthModal({ isOpen, onClose, onSuccess, isFullPage = false, init
   }
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 100,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '1rem',
-      backgroundColor: 'rgba(28, 25, 23, 0.4)',
-      backdropFilter: 'blur(4px)',
-      animation: 'fadeIn 0.2s ease-out'
-    }}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1rem',
+        backgroundColor: 'rgba(28, 25, 23, 0.4)',
+        backdropFilter: 'blur(4px)',
+        animation: 'fadeIn 0.2s ease-out',
+      }}
+    >
       {cardContent}
     </div>
   );
