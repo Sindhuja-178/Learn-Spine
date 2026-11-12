@@ -6,6 +6,7 @@ import { InputTabs } from '@/components/input-tabs';
 import { StudyTabs } from '@/components/study-tabs';
 import { AuthModal } from '@/components/auth-modal';
 import { UpgradeModal } from '@/components/upgrade-modal';
+import { SubscriptionModal } from '@/components/subscription-modal';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { checkUserSubscription, isComplimentaryProEmail } from '@/lib/subscription';
 import { 
@@ -54,31 +55,13 @@ export default function DashboardPage() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isPro, setIsPro] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [upgradeNoticePages, setUpgradeNoticePages] = useState<number | undefined>(undefined);
   const [upgradeSuccessToast, setUpgradeSuccessToast] = useState(false);
 
-  // Customer Portal handler
-  const handleManageSubscription = async () => {
-    if (isComplimentaryProEmail(user?.email)) {
-      alert('Your account (artist.sindhuja@gmail.com) has complimentary lifetime LearnSpine Pro access!');
-      return;
-    }
-    try {
-      const res = await fetch('/api/stripe/portal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user?.id, returnUrl: window.location.origin }),
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        setIsUpgradeModalOpen(true);
-      }
-    } catch (err) {
-      console.error('Error opening portal:', err);
-      setIsUpgradeModalOpen(true);
-    }
+  // Subscription management & unsubscribe handler
+  const handleManageSubscription = () => {
+    setIsSubscriptionModalOpen(true);
   };
 
   // Fetch recent guides from Supabase (filtered by user if logged in)
@@ -482,6 +465,17 @@ export default function DashboardPage() {
         pageCountNotice={upgradeNoticePages}
       />
 
+      {/* Subscription Management & Unsubscribe modal */}
+      <SubscriptionModal
+        isOpen={isSubscriptionModalOpen}
+        onClose={() => setIsSubscriptionModalOpen(false)}
+        userId={user?.id}
+        userEmail={user?.email}
+        onSubscriptionChange={(updatedSub) => {
+          setIsPro(updatedSub.isPro);
+        }}
+      />
+
       {/* Upgrade success celebration banner */}
       {upgradeSuccessToast && (
         <div style={{
@@ -624,6 +618,27 @@ export default function DashboardPage() {
                         {user.email}
                       </span>
                     </div>
+
+                    {isPro && !isComplimentaryProEmail(user?.email) && (
+                      <button 
+                        onClick={handleManageSubscription}
+                        style={{
+                          fontSize: '0.78rem',
+                          color: '#dc2626',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '0.2rem 0.4rem',
+                          fontWeight: 600,
+                          textDecoration: 'underline',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="Unsubscribe from Pro"
+                      >
+                        Unsubscribe
+                      </button>
+                    )}
+
                     <button 
                       onClick={handleSignOut} 
                       className="btn-ghost" 
@@ -1023,11 +1038,7 @@ export default function DashboardPage() {
                     <button 
                       onClick={() => {
                         if (isPro) {
-                          if (isComplimentaryProEmail(user?.email)) {
-                            alert('Your account (artist.sindhuja@gmail.com) has complimentary lifetime LearnSpine Pro access!');
-                          } else {
-                            handleManageSubscription();
-                          }
+                          handleManageSubscription();
                         } else {
                           setUpgradeNoticePages(undefined);
                           setIsUpgradeModalOpen(true);
@@ -1036,7 +1047,7 @@ export default function DashboardPage() {
                       className="btn-primary" 
                       style={{ marginTop: '2rem', width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, #ea580c, #d97706)', border: 'none', color: '#fff', boxShadow: '0 4px 14px rgba(234, 88, 12, 0.3)' }}
                     >
-                      {isPro ? (isComplimentaryProEmail(user?.email) ? 'Active Pro (Complimentary)' : 'Manage Subscription') : 'Upgrade to Pro (69 SEK/mo)'}
+                      {isPro ? (isComplimentaryProEmail(user?.email) ? 'Active Pro (Complimentary)' : 'Manage / Unsubscribe') : 'Upgrade to Pro (69 SEK/mo)'}
                     </button>
                   </div>
 

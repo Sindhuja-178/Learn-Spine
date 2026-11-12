@@ -2,10 +2,11 @@ import { supabase } from './supabase';
 
 export interface UserSubscription {
   isPro: boolean;
-  status: 'active' | 'trialing' | 'canceled' | 'incomplete' | 'past_due' | 'none';
+  status: 'active' | 'trialing' | 'canceling' | 'canceled' | 'incomplete' | 'past_due' | 'none';
   customerId?: string;
   subscriptionId?: string;
   currentPeriodEnd?: string;
+  cancelAtPeriodEnd?: boolean;
 }
 
 /**
@@ -33,6 +34,7 @@ export async function checkUserSubscription(userId?: string, userEmail?: string 
       status: 'active',
       customerId: 'complimentary_pro',
       subscriptionId: 'complimentary_pro',
+      cancelAtPeriodEnd: false,
     };
   }
 
@@ -46,6 +48,7 @@ export async function checkUserSubscription(userId?: string, userEmail?: string 
           status: 'active',
           customerId: 'complimentary_pro',
           subscriptionId: 'complimentary_pro',
+          cancelAtPeriodEnd: false,
         };
       }
     } catch {
@@ -68,7 +71,8 @@ export async function checkUserSubscription(userId?: string, userEmail?: string 
       // If table does not exist yet or error occurs, fail defensively
       console.warn('[Subscription] Error checking subscription status:', error.message);
     } else if (data) {
-      const isActive = data.status === 'active' || data.status === 'trialing';
+      const isPeriodValid = data.current_period_end ? new Date(data.current_period_end).getTime() > Date.now() : true;
+      const isActive = (data.status === 'active' || data.status === 'trialing' || data.status === 'canceling') && isPeriodValid;
       if (isActive) {
         return {
           isPro: isActive,
@@ -76,6 +80,7 @@ export async function checkUserSubscription(userId?: string, userEmail?: string 
           customerId: data.stripe_customer_id,
           subscriptionId: data.stripe_subscription_id,
           currentPeriodEnd: data.current_period_end,
+          cancelAtPeriodEnd: data.status === 'canceling',
         };
       }
     }
@@ -97,6 +102,7 @@ export async function checkUserSubscription(userId?: string, userEmail?: string 
               customerId: stripeStatus.customerId,
               subscriptionId: stripeStatus.subscriptionId,
               currentPeriodEnd: stripeStatus.currentPeriodEnd,
+              cancelAtPeriodEnd: stripeStatus.cancelAtPeriodEnd,
             };
           }
         }

@@ -54,6 +54,7 @@ export async function POST(request: Request) {
           subscription: activeSub ? {
             id: activeSub.id,
             status: activeSub.status,
+            cancelAtPeriodEnd: Boolean(activeSub.cancel_at_period_end),
             currentPeriodStart: new Date(((activeSub as any).current_period_start || Date.now() / 1000) * 1000).toISOString(),
             currentPeriodEnd: new Date(((activeSub as any).current_period_end || Date.now() / 1000) * 1000).toISOString(),
             plan: activeSub.items.data[0]?.price?.nickname || activeSub.items.data[0]?.price?.id,
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
             status: activeSub.status,
             customerId: customer.id,
             subscriptionId: activeSub.id,
+            cancelAtPeriodEnd: Boolean(activeSub.cancel_at_period_end),
             currentPeriodEnd: currentPeriodEnd.toISOString(),
             documents,
           });

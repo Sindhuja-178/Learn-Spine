@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { userId, customerId: directCustomerId, returnUrl } = body;
+    const { userId, customerId: directCustomerId, returnUrl, email } = body;
 
     const requestOrigin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'https://learnspine.se';
     const baseUrl = returnUrl || requestOrigin;
@@ -15,8 +15,19 @@ export async function POST(request: Request) {
     let targetCustomerId = directCustomerId;
 
     if (!targetCustomerId && userId) {
-      const sub = await checkUserSubscription(userId);
+      const sub = await checkUserSubscription(userId, email);
       targetCustomerId = sub.customerId;
+    }
+
+    if (!targetCustomerId && email) {
+      const cleanEmail = email.trim().toLowerCase();
+      const customers = await stripe.customers.list({
+        email: cleanEmail,
+        limit: 1,
+      });
+      if (customers.data.length > 0) {
+        targetCustomerId = customers.data[0].id;
+      }
     }
 
     if (!targetCustomerId) {
