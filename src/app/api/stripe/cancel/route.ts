@@ -12,19 +12,10 @@ export async function POST(request: Request) {
 
     const cleanEmail = (email || '').trim().toLowerCase();
 
-    // 1. VIP / Complimentary users don't have recurring Stripe charges
-    if (cleanEmail && isComplimentaryProEmail(cleanEmail)) {
-      return NextResponse.json({
-        success: true,
-        isComplimentary: true,
-        message: 'Your account has complimentary lifetime LearnSpine Pro access. There are no recurring subscription charges to cancel.',
-      });
-    }
-
     let targetSubId = explicitSubId;
     let customerIdForSync = '';
 
-    // 2. If targetSubId was not provided, look in Supabase first if userId is available
+    // 1. If targetSubId was not provided, look in Supabase first if userId is available
     if (!targetSubId && userId && supabase) {
       try {
         const { data } = await supabase
@@ -42,7 +33,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. If still not found, look up customer by email in Stripe directly
+    // 2. If still not found, look up customer by email in Stripe directly
     if (!targetSubId && cleanEmail) {
       const customers = await stripe.customers.list({
         email: cleanEmail,
@@ -68,6 +59,15 @@ export async function POST(request: Request) {
     }
 
     if (!targetSubId) {
+      // If no Stripe subscription exists and user is complimentary VIP
+      if (cleanEmail && isComplimentaryProEmail(cleanEmail)) {
+        return NextResponse.json({
+          success: true,
+          isComplimentary: true,
+          message: 'Your account has complimentary lifetime LearnSpine Pro access. There are no recurring subscription charges to cancel.',
+        });
+      }
+
       return NextResponse.json({
         success: false,
         error: 'No active Stripe subscription found for this account. If you believe this is an error, please contact support.',

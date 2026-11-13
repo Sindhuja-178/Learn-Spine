@@ -131,9 +131,7 @@ export default function DashboardPage() {
           setUser(activeUser);
 
           // Check subscription status
-          if (isComplimentaryProEmail(activeUser?.email)) {
-            setIsPro(true);
-          } else if (activeUser?.id) {
+          if (activeUser?.id || activeUser?.email) {
             checkUserSubscription(activeUser.id, activeUser.email).then(sub => {
               setIsPro(sub.isPro);
             });
@@ -190,9 +188,7 @@ export default function DashboardPage() {
         const currentUser = session?.user ?? null;
         setUser(currentUser);
 
-        if (isComplimentaryProEmail(currentUser?.email)) {
-          setIsPro(true);
-        } else if (currentUser?.id) {
+        if (currentUser?.id || currentUser?.email) {
           checkUserSubscription(currentUser.id, currentUser.email).then(sub => {
             setIsPro(sub.isPro);
           });
@@ -577,7 +573,7 @@ export default function DashboardPage() {
                   fontWeight: 700,
                   cursor: 'pointer'
                 }}
-                title={isComplimentaryProEmail(user?.email) ? "Complimentary Pro Member" : "Manage Subscription"}
+                title="Manage Subscription / Unsubscribe"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                 <span>PRO ⭐</span>
@@ -629,23 +625,27 @@ export default function DashboardPage() {
                       </span>
                     </div>
 
-                    {isPro && !isComplimentaryProEmail(user?.email) && (
+                    {isPro && (
                       <button 
                         onClick={handleManageSubscription}
                         style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.35rem 0.75rem',
+                          backgroundColor: '#fef2f2',
+                          border: '1px solid #fecaca',
+                          borderRadius: '8px',
+                          color: '#b91c1c',
                           fontSize: '0.78rem',
-                          color: '#dc2626',
-                          background: 'none',
-                          border: 'none',
+                          fontWeight: 700,
                           cursor: 'pointer',
-                          padding: '0.2rem 0.4rem',
-                          fontWeight: 600,
-                          textDecoration: 'underline',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease'
                         }}
                         title="Unsubscribe from Pro"
                       >
-                        Unsubscribe
+                        <span>Unsubscribe</span>
                       </button>
                     )}
 
@@ -1057,8 +1057,26 @@ export default function DashboardPage() {
                       className="btn-primary" 
                       style={{ marginTop: '2rem', width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, #ea580c, #d97706)', border: 'none', color: '#fff', boxShadow: '0 4px 14px rgba(234, 88, 12, 0.3)' }}
                     >
-                      {isPro ? (isComplimentaryProEmail(user?.email) ? 'Active Pro (Complimentary)' : 'Manage / Unsubscribe') : 'Upgrade to Pro (69 SEK/mo)'}
+                      {isPro ? 'Manage / Unsubscribe from Pro' : 'Upgrade to Pro (69 SEK/mo)'}
                     </button>
+                    {isPro && (
+                      <div style={{ textAlign: 'center', marginTop: '0.75rem' }}>
+                        <button
+                          onClick={handleManageSubscription}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#dc2626',
+                            fontSize: '0.825rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                          }}
+                        >
+                          Cancel subscription / Opt out of Pro
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                 </div>

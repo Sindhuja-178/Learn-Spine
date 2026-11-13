@@ -37,25 +37,12 @@ export function SubscriptionModal({
     amountSEK?: number;
   } | null>(null);
 
-  const isComplimentary = isComplimentaryProEmail(userEmail);
-
   // Fetch latest subscription status whenever modal opens
   useEffect(() => {
     if (!isOpen) {
       setConfirmCancel(false);
       setError(null);
       setSuccessMessage(null);
-      return;
-    }
-
-    if (isComplimentary) {
-      setSubData({
-        isPro: true,
-        status: 'active',
-        customerId: 'complimentary_pro',
-        subscriptionId: 'complimentary_pro',
-        cancelAtPeriodEnd: false,
-      });
       return;
     }
 
@@ -71,7 +58,8 @@ export function SubscriptionModal({
       .then((res) => res.json())
       .then((data) => {
         if (!isMounted) return;
-        if (data.isPro) {
+        if (data.isPro && data.subscriptionId && data.subscriptionId !== 'complimentary_pro') {
+          // Active paid Stripe customer!
           setSubData({
             isPro: true,
             status: data.status || 'active',
@@ -81,6 +69,15 @@ export function SubscriptionModal({
             cancelAtPeriodEnd: Boolean(data.cancelAtPeriodEnd),
             plan: data.documents?.subscription?.plan || 'LearnSpine Pro (Monthly)',
             amountSEK: data.documents?.subscription?.amountSEK || 69,
+          });
+        } else if (isComplimentaryProEmail(userEmail)) {
+          // Lifetime complimentary VIP
+          setSubData({
+            isPro: true,
+            status: 'active',
+            customerId: 'complimentary_pro',
+            subscriptionId: 'complimentary_pro',
+            cancelAtPeriodEnd: false,
           });
         } else {
           setSubData(null);
@@ -97,7 +94,7 @@ export function SubscriptionModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, userEmail, userId, isComplimentary]);
+  }, [isOpen, userEmail, userId]);
 
   if (!isOpen) return null;
 
@@ -336,7 +333,7 @@ export function SubscriptionModal({
         {!loading && (
           <>
             {/* VIP / Complimentary Pro View */}
-            {isComplimentary ? (
+            {subData?.subscriptionId === 'complimentary_pro' ? (
               <div
                 style={{
                   backgroundColor: '#fffbeb',

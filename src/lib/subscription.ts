@@ -14,7 +14,6 @@ export interface UserSubscription {
  */
 export const COMPLIMENTARY_PRO_EMAILS: string[] = [
   'artist.sindhuja@gmail.com',
-  'sinydav@gmail.com',
 ];
 
 export function isComplimentaryProEmail(email?: string | null): boolean {
@@ -27,8 +26,36 @@ export function isComplimentaryProEmail(email?: string | null): boolean {
  * Checks whether a given Supabase user has an active LearnSpine Pro subscription.
  */
 export async function checkUserSubscription(userId?: string, userEmail?: string | null): Promise<UserSubscription> {
-  // 1. Immediate check for complimentary Pro emails
-  if (isComplimentaryProEmail(userEmail)) {
+  const cleanEmail = (userEmail || '').trim().toLowerCase();
+
+  // 1. Check real active subscription directly from Stripe API via backend sync first
+  if (cleanEmail && typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/stripe/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, email: cleanEmail }),
+      });
+      if (res.ok) {
+        const stripeStatus = await res.json();
+        if (stripeStatus.isPro && stripeStatus.subscriptionId && stripeStatus.subscriptionId !== 'complimentary_pro') {
+          return {
+            isPro: true,
+            status: stripeStatus.status || 'active',
+            customerId: stripeStatus.customerId,
+            subscriptionId: stripeStatus.subscriptionId,
+            currentPeriodEnd: stripeStatus.currentPeriodEnd,
+            cancelAtPeriodEnd: stripeStatus.cancelAtPeriodEnd,
+          };
+        }
+      }
+    } catch (stripeErr) {
+      console.warn('[Subscription] Error querying Stripe status:', stripeErr);
+    }
+  }
+
+  // 2. Check for complimentary Pro whitelist if no real Stripe subscription
+  if (cleanEmail && isComplimentaryProEmail(cleanEmail)) {
     return {
       isPro: true,
       status: 'active',
@@ -38,8 +65,8 @@ export async function checkUserSubscription(userId?: string, userEmail?: string 
     };
   }
 
-  // 2. If userEmail wasn't passed directly, check active Supabase session
-  if (!userEmail && supabase) {
+  // 3. If userEmail wasn't passed directly, check active Supabase session
+  if (!cleanEmail && supabase) {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.email && isComplimentaryProEmail(session.user.email)) {
