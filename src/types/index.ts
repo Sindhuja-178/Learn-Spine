@@ -5,6 +5,7 @@
 export interface Flashcard {
   question: string;
   answer: string;
+  sourceExcerpt?: string;
 }
 
 export interface QuizQuestion {
@@ -12,12 +13,28 @@ export interface QuizQuestion {
   options: string[];
   correct_option: number; // 0-3
   explanation: string;
+  sourceExcerpt?: string;
 }
 
 export interface StudyMaterial {
   mermaid_code: string;
   flashcards: Flashcard[];
   quiz: QuizQuestion[];
+  sourceText?: string;
+  subject?: string;
+  tags?: string[];
+}
+
+export interface HistoryItem {
+  id: string;
+  title: string;
+  materials: StudyMaterial;
+  date: string;
+  type: 'text' | 'youtube';
+  isSynced?: boolean;
+  subject?: string;
+  tags?: string[];
+  sourceText?: string;
 }
 
 export type ProcessingResult = {

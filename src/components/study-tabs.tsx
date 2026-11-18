@@ -1,25 +1,24 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { MermaidViewer } from './mermaid-viewer';
-import { FlashcardFlipper } from './flashcard-flipper';
-import { QuizInterface } from './quiz-interface';
-import { GitFork, BookOpen, CheckSquare, Share2, Copy, Download, Check } from 'lucide-react';
+import { useState } from 'react';
+import { FlowchartMode } from '@/components/study-modes/flowchart-mode';
+import { FlashcardMode } from '@/components/study-modes/flashcard-mode';
+import { QuizMode } from '@/components/study-modes/quiz-mode';
+import { GitFork, BookOpen, CheckSquare, Share2, Copy, Check } from 'lucide-react';
 import type { StudyMaterial } from '@/types';
 
 interface StudyTabsProps {
   materials: StudyMaterial;
   shareId?: string | null;
   onShare?: () => void;
+  onSelectReference?: (text: string) => void;
 }
 
-export function StudyTabs({ materials, shareId, onShare }: StudyTabsProps) {
+export function StudyTabs({ materials, shareId, onShare, onSelectReference }: StudyTabsProps) {
   const [activeTab, setActiveTab] = useState<'flowchart' | 'flashcards' | 'quiz'>('flowchart');
   const [copiedShare, setCopiedShare] = useState(false);
   const [copiedContent, setCopiedContent] = useState(false);
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 
-  // 1. Share Handler
   const handleShareClick = () => {
     if (onShare) {
       onShare();
@@ -32,13 +31,12 @@ export function StudyTabs({ materials, shareId, onShare }: StudyTabsProps) {
     }
   };
 
-  // 2. Copy Handler (Copies active tab content to clipboard)
   const handleCopyClick = () => {
     let textToCopy = '';
     if (activeTab === 'flowchart') {
       textToCopy = materials.mermaid_code;
     } else if (activeTab === 'flashcards') {
-      textToCopy = materials.flashcards.map(f => `Q: ${f.question}\nA: ${f.answer}`).join('\n\n');
+      textToCopy = materials.flashcards.map((f, i) => `${i + 1}. Q: ${f.question}\n   A: ${f.answer}`).join('\n\n');
     } else if (activeTab === 'quiz') {
       textToCopy = materials.quiz.map((q, idx) => {
         const opts = q.options.map((opt, i) => `  ${String.fromCharCode(65 + i)}) ${opt}`).join('\n');
@@ -51,390 +49,164 @@ export function StudyTabs({ materials, shareId, onShare }: StudyTabsProps) {
     setTimeout(() => setCopiedContent(false), 2000);
   };
 
-  // 3. Download Handlers
-  const getWatermarkedSVG = () => {
-    const svgElement = document.querySelector('.mermaid-container svg');
-    if (!svgElement) return null;
-
-    const svgClone = svgElement.cloneNode(true) as SVGElement;
-    svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-
-    const textNode = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    const viewBox = svgClone.getAttribute('viewBox');
-    let width = 800;
-    let height = 600;
-    let x = 30;
-    let y = 40;
-
-    if (viewBox) {
-      const parts = viewBox.split(' ');
-      if (parts.length === 4) {
-        width = parseFloat(parts[2]);
-        height = parseFloat(parts[3]);
-        x = width - 120;
-        y = height - 25;
-      }
-    }
-
-    textNode.setAttribute('x', String(x));
-    textNode.setAttribute('y', String(y));
-    textNode.setAttribute('fill', '#94a3b8');
-    textNode.setAttribute('font-size', '16');
-    textNode.setAttribute('font-family', 'sans-serif');
-    textNode.setAttribute('font-weight', 'bold');
-    textNode.setAttribute('opacity', '0.6');
-    textNode.textContent = 'LearnSpine';
-    svgClone.appendChild(textNode);
-
-    return {
-      svgString: new XMLSerializer().serializeToString(svgClone),
-      width,
-      height
-    };
-  };
-
-  const downloadFlowchartSVG = () => {
-    const data = getWatermarkedSVG();
-    if (!data) return;
-
-    const svgBlob = new Blob([data.svgString], { type: 'image/svg+xml;charset=utf-8' });
-    const svgUrl = URL.createObjectURL(svgBlob);
-
-    const downloadLink = document.createElement('a');
-    downloadLink.href = svgUrl;
-    downloadLink.download = 'learnspine-flowchart.svg';
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-    URL.revokeObjectURL(svgUrl);
-  };
-
-  const downloadFlowchartPNG = () => {
-    const data = getWatermarkedSVG();
-    if (!data) return;
-
-    const svgBlob = new Blob([data.svgString], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = data.width * 2;
-      canvas.height = data.height * 2;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        const pngUrl = canvas.toDataURL('image/png');
-        const downloadLink = document.createElement('a');
-        downloadLink.href = pngUrl;
-        downloadLink.download = 'learnspine-flowchart.png';
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-      }
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
-  };
-
-  const downloadFlowchartPDF = async () => {
-    const data = getWatermarkedSVG();
-    if (!data) return;
-
-    const svgBlob = new Blob([data.svgString], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-
-    const img = new Image();
-    img.onload = async () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = data.width * 2;
-      canvas.height = data.height * 2;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        const imgData = canvas.toDataURL('image/png');
-        const { jsPDF } = await import('jspdf');
-
-        const orientation = data.width > data.height ? 'l' : 'p';
-        const pdf = new jsPDF({
-          orientation: orientation,
-          unit: 'px',
-          format: [data.width, data.height],
-        });
-
-        pdf.addImage(imgData, 'PNG', 0, 0, data.width, data.height);
-        pdf.save('learnspine-flowchart.pdf');
-      }
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
-  };
-
-  const downloadFlashcardsAnki = () => {
-    const text = materials.flashcards.map(f => `${f.question}\t${f.answer}`).join('\n');
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'learnspine-flashcards-anki.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const downloadFlashcardsJSON = () => {
-    const json = JSON.stringify(materials.flashcards, null, 2);
-    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'learnspine-flashcards.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const downloadQuizText = () => {
-    const text = materials.quiz.map((q, idx) => {
-      const options = q.options.map((opt, i) => `  ${String.fromCharCode(65 + i)}) ${opt}`).join('\n');
-      return `Q${idx + 1}: ${q.question}\n${options}\nCorrect Answer: ${String.fromCharCode(65 + q.correct_option)}) ${q.options[q.correct_option]}\nExplanation: ${q.explanation}\n`;
-    }).join('\n---\n\n');
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'learnspine-quiz.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const downloadQuizJSON = () => {
-    const json = JSON.stringify(materials.quiz, null, 2);
-    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'learnspine-quiz.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Navigation Tabs Header with Circular Action Buttons */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div className="tab-list" style={{ margin: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      {/* Sticky segmented control & action buttons */}
+      <div
+        className="card"
+        style={{
+          padding: '0.75rem 1.25rem',
+          backgroundColor: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: '12px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.75rem'
+        }}
+      >
+        <div
+          style={{
+            display: 'inline-flex',
+            padding: '0.25rem',
+            backgroundColor: '#f1f5f9',
+            borderRadius: '8px',
+            border: '1px solid #e2e8f0',
+            gap: '0.25rem'
+          }}
+        >
           <button
             onClick={() => setActiveTab('flowchart')}
-            className="tab-trigger"
-            data-active={activeTab === 'flowchart'}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.45rem 1rem',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              backgroundColor: activeTab === 'flowchart' ? '#ffffff' : 'transparent',
+              color: activeTab === 'flowchart' ? '#4f46e5' : '#64748b',
+              boxShadow: activeTab === 'flowchart' ? 'var(--shadow-sm)' : 'none'
+            }}
           >
             <GitFork className="w-4 h-4" />
-            Flowchart
+            <span>Flowchart</span>
           </button>
+
           <button
             onClick={() => setActiveTab('flashcards')}
-            className="tab-trigger"
-            data-active={activeTab === 'flashcards'}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.45rem 1rem',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              backgroundColor: activeTab === 'flashcards' ? '#ffffff' : 'transparent',
+              color: activeTab === 'flashcards' ? '#4f46e5' : '#64748b',
+              boxShadow: activeTab === 'flashcards' ? 'var(--shadow-sm)' : 'none'
+            }}
           >
             <BookOpen className="w-4 h-4" />
-            Flashcards
+            <span>Flashcards ({materials.flashcards.length})</span>
           </button>
+
           <button
             onClick={() => setActiveTab('quiz')}
-            className="tab-trigger"
-            data-active={activeTab === 'quiz'}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.45rem 1rem',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              backgroundColor: activeTab === 'quiz' ? '#ffffff' : 'transparent',
+              color: activeTab === 'quiz' ? '#4f46e5' : '#64748b',
+              boxShadow: activeTab === 'quiz' ? 'var(--shadow-sm)' : 'none'
+            }}
           >
             <CheckSquare className="w-4 h-4" />
-            Quiz
+            <span>Quiz ({materials.quiz.length})</span>
           </button>
         </div>
 
-        {/* 3 Circular Action Buttons: Share, Copy, Download */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-          {/* 1. Share Button */}
-          <button
-            onClick={handleShareClick}
-            className="btn-ghost"
-            style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '50%',
-              padding: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'var(--color-bg-secondary)',
-              border: '1px solid var(--color-border-default)',
-              boxShadow: 'var(--shadow-sm)',
-              color: copiedShare ? 'var(--color-accent-green)' : 'var(--color-text-secondary)',
-              transition: 'all 0.15s ease',
-            }}
-            title={copiedShare ? 'Link Copied!' : 'Share Guide'}
-          >
-            {copiedShare ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
-          </button>
-
-          {/* 2. Copy Button */}
+        {/* Action Buttons: Copy & Share */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <button
             onClick={handleCopyClick}
             className="btn-ghost"
             style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '50%',
-              padding: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'var(--color-bg-secondary)',
-              border: '1px solid var(--color-border-default)',
-              boxShadow: 'var(--shadow-sm)',
-              color: copiedContent ? 'var(--color-accent-green)' : 'var(--color-text-secondary)',
-              transition: 'all 0.15s ease',
+              padding: '0.4rem 0.75rem',
+              fontSize: '0.8rem',
+              border: '1px solid #e2e8f0',
+              borderRadius: '6px',
+              backgroundColor: '#ffffff'
             }}
-            title={copiedContent ? 'Copied to clipboard!' : `Copy ${activeTab === 'flowchart' ? 'Flowchart Code' : activeTab === 'flashcards' ? 'Flashcards' : 'Quiz'}`}
+            title={`Copy ${activeTab} data to clipboard`}
           >
-            {copiedContent ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            {copiedContent ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <span style={{ color: '#16a34a' }}>Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5 text-slate-500" />
+                <span>Copy</span>
+              </>
+            )}
           </button>
 
-          {/* 3. Download Button with Dropdown */}
-          <div style={{ position: 'relative' }} onMouseLeave={() => setShowDownloadMenu(false)}>
-            <button
-              onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-              className="btn-ghost"
-              style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '50%',
-                padding: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'var(--color-bg-secondary)',
-                border: '1px solid var(--color-border-default)',
-                boxShadow: 'var(--shadow-sm)',
-                color: 'var(--color-text-secondary)',
-                transition: 'all 0.15s ease',
-              }}
-              title="Download Options"
-            >
-              <Download className="w-4 h-4" />
-            </button>
-
-            {showDownloadMenu && (
-              <div
-                className="animate-slide-down"
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: '0.5rem',
-                  backgroundColor: 'var(--color-bg-secondary)',
-                  border: '1px solid var(--color-border-default)',
-                  borderRadius: '14px',
-                  boxShadow: 'var(--shadow-lg)',
-                  zIndex: 50,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  padding: '0.4rem',
-                  minWidth: '160px',
-                }}
-              >
-                {activeTab === 'flowchart' && (
-                  <>
-                    <button
-                      onClick={() => { downloadFlowchartSVG(); setShowDownloadMenu(false); }}
-                      className="btn-ghost"
-                      style={{ padding: '0.5rem 0.85rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
-                    >
-                      SVG Vector
-                    </button>
-                    <button
-                      onClick={() => { downloadFlowchartPNG(); setShowDownloadMenu(false); }}
-                      className="btn-ghost"
-                      style={{ padding: '0.5rem 0.85rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
-                    >
-                      PNG Image
-                    </button>
-                    <button
-                      onClick={() => { downloadFlowchartPDF(); setShowDownloadMenu(false); }}
-                      className="btn-ghost"
-                      style={{ padding: '0.5rem 0.85rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
-                    >
-                      PDF Document
-                    </button>
-                  </>
-                )}
-
-                {activeTab === 'flashcards' && (
-                  <>
-                    <button
-                      onClick={() => { downloadFlashcardsAnki(); setShowDownloadMenu(false); }}
-                      className="btn-ghost"
-                      style={{ padding: '0.5rem 0.85rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
-                    >
-                      Anki Deck (.txt)
-                    </button>
-                    <button
-                      onClick={() => { downloadFlashcardsJSON(); setShowDownloadMenu(false); }}
-                      className="btn-ghost"
-                      style={{ padding: '0.5rem 0.85rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
-                    >
-                      JSON Data
-                    </button>
-                  </>
-                )}
-
-                {activeTab === 'quiz' && (
-                  <>
-                    <button
-                      onClick={() => { downloadQuizText(); setShowDownloadMenu(false); }}
-                      className="btn-ghost"
-                      style={{ padding: '0.5rem 0.85rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
-                    >
-                      Quiz Text (.txt)
-                    </button>
-                    <button
-                      onClick={() => { downloadQuizJSON(); setShowDownloadMenu(false); }}
-                      className="btn-ghost"
-                      style={{ padding: '0.5rem 0.85rem', fontSize: '0.8rem', justifyContent: 'flex-start', borderRadius: '8px', width: '100%' }}
-                    >
-                      JSON Data
-                    </button>
-                  </>
-                )}
-              </div>
+          <button
+            onClick={handleShareClick}
+            className="btn-ghost"
+            style={{
+              padding: '0.4rem 0.75rem',
+              fontSize: '0.8rem',
+              border: '1px solid #e2e8f0',
+              borderRadius: '6px',
+              backgroundColor: '#ffffff'
+            }}
+            title="Share Guide Link"
+          >
+            {copiedShare ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <span style={{ color: '#16a34a' }}>Link Copied</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="w-3.5 h-3.5 text-slate-500" />
+                <span>Share</span>
+              </>
             )}
-          </div>
+          </button>
         </div>
       </div>
 
       {/* Tab content */}
-      <div className="animate-fade-in">
+      <div className="card" style={{ padding: activeTab === 'flowchart' ? '0' : '1.5rem', backgroundColor: activeTab === 'flowchart' ? '#f8fafc' : '#ffffff', overflow: 'hidden' }}>
         {activeTab === 'flowchart' && (
-          <MermaidViewer code={materials.mermaid_code} />
+          <FlowchartMode code={materials.mermaid_code} onSelectReference={onSelectReference} />
         )}
         {activeTab === 'flashcards' && (
-          <FlashcardFlipper flashcards={materials.flashcards} />
+          <FlashcardMode flashcards={materials.flashcards} onSelectReference={onSelectReference} />
         )}
         {activeTab === 'quiz' && (
-          <QuizInterface questions={materials.quiz} />
+          <QuizMode questions={materials.quiz} onSelectReference={onSelectReference} />
         )}
       </div>
     </div>

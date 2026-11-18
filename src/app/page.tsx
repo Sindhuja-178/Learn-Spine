@@ -2,53 +2,52 @@
 
 import { useState, useEffect } from 'react';
 import { Logo } from '@/components/logo';
-import { InputTabs } from '@/components/input-tabs';
-import { StudyTabs } from '@/components/study-tabs';
+import { HeroDropzone } from '@/components/landing/hero-dropzone';
+import { BeforeAfterShowcase } from '@/components/landing/before-after-showcase';
+import { SplitWorkspace } from '@/components/workspace/split-workspace';
+import { DocumentSidebar } from '@/components/workspace/document-sidebar';
+import { ProcessingStepper } from '@/components/workspace/processing-stepper';
 import { AuthModal } from '@/components/auth-modal';
 import { UpgradeModal } from '@/components/upgrade-modal';
 import { SubscriptionModal } from '@/components/subscription-modal';
+import { SAMPLE_DOCUMENTS } from '@/lib/sample-data';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { checkUserSubscription, isComplimentaryProEmail } from '@/lib/subscription';
+import { checkUserSubscription } from '@/lib/subscription';
 import { 
   Sparkles, 
-  BookOpen, 
-  GitFork, 
-  CheckSquare, 
-  History, 
-  Trash2, 
+  ChevronLeft, 
   Plus, 
-  ChevronLeft,
-  Video,
-  FileText,
-  ArrowRight,
-  HelpCircle,
-  Mail,
-  Share2,
-  Check,
-  Database,
-  LogIn,
-  LogOut,
-  User
+  LogOut, 
+  User, 
+  Database, 
+  Mail, 
+  Check, 
+  FolderOpen,
+  GitFork,
+  BookOpen,
+  CheckSquare,
+  Zap,
+  ShieldCheck,
+  ArrowRight
 } from 'lucide-react';
-import type { StudyMaterial } from '@/types';
-
-interface HistoryItem {
-  id: string;
-  title: string;
-  materials: StudyMaterial;
-  date: string;
-  type: 'text' | 'youtube';
-  isSynced?: boolean;
-}
+import type { StudyMaterial, HistoryItem } from '@/types';
 
 export default function DashboardPage() {
   const [currentTitle, setCurrentTitle] = useState<string | null>(null);
   const [currentMaterials, setCurrentMaterials] = useState<StudyMaterial | null>(null);
+  const [currentSourceText, setCurrentSourceText] = useState<string>('');
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [mounted, setMounted] = useState(false);
   const [sharedId, setSharedId] = useState<string | null>(null);
   const [dbConfigured, setDbConfigured] = useState(false);
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
+
+  // Processing state for step-by-step indicator
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingFileName, setProcessingFileName] = useState('');
+
+  // Workspace Sidebar toggle state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Auth & Subscription States
   const [user, setUser] = useState<any>(null);
@@ -79,7 +78,7 @@ export default function DashboardPage() {
 
       const { data, error } = await query
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(25);
       
       if (error) {
         console.error('Failed to fetch from Supabase:', error);
@@ -90,6 +89,9 @@ export default function DashboardPage() {
         id: row.id,
         title: row.title,
         materials: row.materials,
+        sourceText: row.materials?.sourceText || '',
+        subject: row.materials?.subject || 'General',
+        tags: row.materials?.tags || [],
         date: new Date(row.created_at).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
@@ -132,7 +134,7 @@ export default function DashboardPage() {
 
           // Check subscription status
           if (activeUser?.id || activeUser?.email) {
-            checkUserSubscription(activeUser.id, activeUser.email).then(sub => {
+            checkUserSubscription(activeUser.id, activeUser.email).then((sub) => {
               setIsPro(sub.isPro);
             });
           }
@@ -164,11 +166,10 @@ export default function DashboardPage() {
 
       if (configured) {
         const dbItems = await fetchSupabaseGuides(activeUser?.id);
-        // Merge: prioritize database items, append local items if not already matching
         const merged = [...dbItems];
-        localItems.forEach(local => {
+        localItems.forEach((local) => {
           const alreadyExists = dbItems.some(
-            db => db.title.toLowerCase() === local.title.toLowerCase() || db.id === local.id
+            (db) => db.title.toLowerCase() === local.title.toLowerCase() || db.id === local.id
           );
           if (!alreadyExists) {
             merged.push(local);
@@ -189,14 +190,13 @@ export default function DashboardPage() {
         setUser(currentUser);
 
         if (currentUser?.id || currentUser?.email) {
-          checkUserSubscription(currentUser.id, currentUser.email).then(sub => {
+          checkUserSubscription(currentUser.id, currentUser.email).then((sub) => {
             setIsPro(sub.isPro);
           });
         } else {
           setIsPro(false);
         }
 
-        // Reload history matching current auth status
         const dbItems = await fetchSupabaseGuides(currentUser?.id);
         setHistory(dbItems);
       });
@@ -205,7 +205,7 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Save history helper (saves to localStorage only as fallback/cache)
+  // Save history helper (local cache)
   const saveLocalHistoryOnly = (newHistory: HistoryItem[]) => {
     setHistory(newHistory);
     localStorage.setItem('learnspine_history', JSON.stringify(newHistory));
@@ -214,7 +214,6 @@ export default function DashboardPage() {
   // Sync sandbox guides to user account upon logging in
   const handleAuthSuccess = async () => {
     if (!supabase) return;
-    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const activeUser = session?.user;
@@ -222,29 +221,18 @@ export default function DashboardPage() {
       
       setUser(activeUser);
 
-      // Upload unsynced local items to their new database account
-      const unsynced = history.filter(item => !item.isSynced);
+      const unsynced = history.filter((item) => !item.isSynced);
       if (unsynced.length > 0) {
-        const syncRows = unsynced.map(item => ({
+        const syncRows = unsynced.map((item) => ({
           title: item.title,
           source_type: item.type,
           materials: item.materials,
           user_id: activeUser.id
         }));
 
-        const { data, error } = await supabase
-          .from('study_materials')
-          .insert(syncRows)
-          .select();
-
-        if (error) {
-          console.error('Error syncing offline items:', error);
-        } else {
-          console.log(`Successfully synced ${data?.length} guides to user account.`);
-        }
+        await supabase.from('study_materials').insert(syncRows);
       }
 
-      // Reload full synced guides list
       const dbItems = await fetchSupabaseGuides(activeUser.id);
       setHistory(dbItems);
     } catch (err) {
@@ -257,7 +245,6 @@ export default function DashboardPage() {
       await supabase.auth.signOut();
       setUser(null);
       
-      // Load local unsynced sandbox items back into list
       const stored = localStorage.getItem('learnspine_history');
       if (stored) {
         try {
@@ -273,31 +260,37 @@ export default function DashboardPage() {
   };
 
   // Callback when a document has been successfully processed
-  const handleSuccess = async (title: string, materials: StudyMaterial, type: 'text' | 'youtube') => {
+  const handleSuccess = async (title: string, materials: StudyMaterial, sourceText?: string) => {
     const tempId = `session-${Date.now()}`;
+    const effectiveSourceText = sourceText || materials.sourceText || '';
+
     const newItem: HistoryItem = {
       id: tempId,
       title,
-      materials,
+      materials: {
+        ...materials,
+        sourceText: effectiveSourceText
+      },
+      sourceText: effectiveSourceText,
+      subject: materials.subject || 'General',
+      tags: materials.tags || [],
       date: new Date().toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
       }),
-      type,
+      type: 'text',
       isSynced: false,
     };
 
-    // If Supabase is connected, save to DB
     if (supabase) {
       try {
         const insertRow: any = {
           title,
-          source_type: type,
-          materials,
+          source_type: 'text',
+          materials: newItem.materials,
         };
 
-        // Link to user if authenticated
         if (user) {
           insertRow.user_id = user.id;
         }
@@ -307,9 +300,7 @@ export default function DashboardPage() {
           .insert([insertRow])
           .select();
         
-        if (error) {
-          console.error('Error saving to Supabase:', error);
-        } else if (data && data[0]) {
+        if (!error && data && data[0]) {
           newItem.id = data[0].id;
           newItem.isSynced = true;
         }
@@ -322,8 +313,40 @@ export default function DashboardPage() {
     saveLocalHistoryOnly(updatedHistory);
     
     setCurrentTitle(title);
-    setCurrentMaterials(materials);
+    setCurrentMaterials(newItem.materials);
+    setCurrentSourceText(effectiveSourceText);
     setActiveItemId(newItem.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Instant Sample Pill Selection Handler (Try Without Signup)
+  const handleSelectSample = (sampleKey: 'medicalCaseStudy' | 'corporateLawBrief' | 'systemsArchitecture') => {
+    const sample = SAMPLE_DOCUMENTS[sampleKey];
+    if (!sample) return;
+
+    setCurrentTitle(sample.title);
+    setCurrentMaterials(sample.materials);
+    setCurrentSourceText(sample.sourceText);
+    setActiveItemId(sample.id);
+
+    // Also add to local history preview so it appears in the sidebar library
+    const sampleHistoryItem: HistoryItem = {
+      id: sample.id,
+      title: sample.title,
+      materials: sample.materials,
+      sourceText: sample.sourceText,
+      subject: sample.subject,
+      tags: sample.tags,
+      date: 'Sample Kit',
+      type: 'text',
+      isSynced: false
+    };
+
+    const exists = history.some((h) => h.id === sample.id);
+    if (!exists) {
+      setHistory([sampleHistoryItem, ...history]);
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -331,6 +354,7 @@ export default function DashboardPage() {
   const loadHistoryItem = (item: HistoryItem) => {
     setCurrentTitle(item.title);
     setCurrentMaterials(item.materials);
+    setCurrentSourceText(item.sourceText || item.materials?.sourceText || '');
     setActiveItemId(item.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -339,12 +363,10 @@ export default function DashboardPage() {
   const deleteHistoryItem = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // 1. Delete locally
-    const updated = history.filter(item => item.id !== id);
+    const updated = history.filter((item) => item.id !== id);
     saveLocalHistoryOnly(updated);
 
-    // 2. Delete from Supabase if active
-    const targetItem = history.find(item => item.id === id);
+    const targetItem = history.find((item) => item.id === id);
     if (supabase && id.includes('-')) {
       try {
         await supabase
@@ -356,16 +378,13 @@ export default function DashboardPage() {
       }
     }
     
-    // If the active item is deleted, reset back to dashboard
     if (currentMaterials && targetItem?.materials === currentMaterials) {
       handleBackToDashboard();
     }
   };
 
   // Share study guide
-  const handleShareGuide = async (item: HistoryItem, e: React.MouseEvent) => {
-    e.stopPropagation();
-
+  const handleShareGuide = async (item: HistoryItem) => {
     if (!dbConfigured) {
       alert('Supabase is not configured yet. Add your Supabase keys in .env.local to share guides.');
       return;
@@ -373,7 +392,6 @@ export default function DashboardPage() {
 
     let shareId = item.id;
 
-    // If item was generated locally and not saved to DB, save it now
     if (!item.isSynced && supabase) {
       try {
         const insertRow: any = {
@@ -398,8 +416,7 @@ export default function DashboardPage() {
 
         if (data && data[0]) {
           shareId = data[0].id;
-          // Update local history state to mark synced
-          const updated = history.map(h => h.id === item.id ? { ...h, id: shareId, isSynced: true } : h);
+          const updated = history.map((h) => (h.id === item.id ? { ...h, id: shareId, isSynced: true } : h));
           saveLocalHistoryOnly(updated);
         }
       } catch (err) {
@@ -408,12 +425,11 @@ export default function DashboardPage() {
       }
     }
 
-    // Copy sharing link
     const shareUrl = `${window.location.origin}/share/${shareId}`;
     try {
       await navigator.clipboard.writeText(shareUrl);
       setSharedId(shareId);
-      setTimeout(() => setSharedId(null), 2000);
+      setTimeout(() => setSharedId(null), 2500);
     } catch (err) {
       console.error('Failed to copy text:', err);
     }
@@ -422,31 +438,32 @@ export default function DashboardPage() {
   const handleBackToDashboard = () => {
     setCurrentTitle(null);
     setCurrentMaterials(null);
+    setCurrentSourceText('');
     setActiveItemId(null);
   };
 
   if (!mounted) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-bg-primary)' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
         <div className="loading-spinner">
-          <div className="dot" />
-          <div className="dot" />
-          <div className="dot" />
+          <div className="dot" style={{ backgroundColor: '#4f46e5' }} />
+          <div className="dot" style={{ backgroundColor: '#4f46e5' }} />
+          <div className="dot" style={{ backgroundColor: '#4f46e5' }} />
         </div>
       </div>
     );
   }
 
-  // 1. Force Database Configuration Notice
+  // Database notice fallback
   if (!dbConfigured) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-bg-primary)', padding: '2rem' }}>
-        <div className="card animate-scale-in" style={{ padding: '3rem', maxWidth: '500px', textAlign: 'center', border: '1px solid var(--color-border-default)', backgroundColor: 'var(--color-bg-secondary)' }}>
-          <h2 style={{ marginBottom: '1rem', fontWeight: 700 }}>Database Configuration Required</h2>
-          <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem', lineHeight: 1.6 }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', padding: '2rem' }}>
+        <div className="card animate-scale-in" style={{ padding: '3rem', maxWidth: '520px', textAlign: 'center', backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+          <h2 style={{ marginBottom: '1rem', fontWeight: 700, color: '#0f172a' }}>Database Configuration Required</h2>
+          <p style={{ color: '#475569', marginBottom: '1.5rem', lineHeight: 1.6, fontSize: '0.9rem' }}>
             LearnSpine requires Supabase to handle user authentication, history sync, and sharing features.
           </p>
-          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', backgroundColor: 'var(--color-bg-primary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--color-border-default)' }}>
+          <p style={{ fontSize: '0.85rem', color: '#64748b', backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
             Please add your <strong>NEXT_PUBLIC_SUPABASE_URL</strong> and <strong>NEXT_PUBLIC_SUPABASE_ANON_KEY</strong> in your <code>.env.local</code> file or Vercel Environment Variables.
           </p>
         </div>
@@ -455,16 +472,16 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-bg-primary)' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc' }}>
       
-      {/* Auth modal instance */}
+      {/* Auth modal */}
       <AuthModal 
         isOpen={isAuthModalOpen} 
         onClose={() => setIsAuthModalOpen(false)} 
         onSuccess={handleAuthSuccess}
       />
 
-      {/* Upgrade to Pro modal instance */}
+      {/* Upgrade to Pro modal */}
       <UpgradeModal
         isOpen={isUpgradeModalOpen}
         onClose={() => setIsUpgradeModalOpen(false)}
@@ -482,7 +499,7 @@ export default function DashboardPage() {
         }}
       />
 
-      {/* Upgrade success celebration banner */}
+      {/* Upgrade success toast */}
       {upgradeSuccessToast && (
         <div style={{
           backgroundColor: '#ecfdf5',
@@ -499,7 +516,7 @@ export default function DashboardPage() {
           position: 'relative'
         }}>
           <Sparkles className="w-4 h-4 text-emerald-600" />
-          <span>🎉 <strong>Welcome to LearnSpine Pro!</strong> Your account is now upgraded. You have full access to 50–100 page documents and high-resolution flowcharts.</span>
+          <span>🎉 <strong>Welcome to LearnSpine Pro!</strong> Your account is upgraded with access to 100-page documents and high-resolution diagram exports.</span>
           <button 
             onClick={() => setUpgradeSuccessToast(false)} 
             className="btn-ghost" 
@@ -510,64 +527,70 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Top Navbar */}
+      {/* Top Academic Navigation Bar */}
       <nav style={{
         position: 'sticky',
         top: 0,
         zIndex: 50,
-        borderBottom: '1px solid var(--color-border-default)',
-        backgroundColor: 'rgba(252, 251, 249, 0.8)',
+        borderBottom: '1px solid #e2e8f0',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(8px)',
         height: '64px',
         display: 'flex',
         alignItems: 'center',
-        padding: '0 2rem'
+        padding: '0 1.5rem'
       }}>
-        <div style={{ maxWidth: '1000px', width: '100%', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          {currentMaterials ? (
-            <button 
-              onClick={handleBackToDashboard} 
-              className="btn-ghost" 
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 500, paddingLeft: 0 }}
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Back to Workspace
-            </button>
-          ) : (
-            <Logo onClick={handleBackToDashboard} size={30} />
-          )}
+        <div style={{ width: '100%', maxWidth: '1600px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            {currentMaterials ? (
+              <button 
+                onClick={handleBackToDashboard} 
+                className="btn-ghost" 
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, color: '#0f172a' }}
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span>Home</span>
+              </button>
+            ) : (
+              <Logo onClick={handleBackToDashboard} size={28} />
+            )}
 
-          {currentMaterials ? (
-            <span style={{
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              color: 'var(--color-text-primary)',
-              maxWidth: '280px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
-              {currentTitle}
-            </span>
-          ) : null}
+            {currentMaterials && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ color: '#cbd5e1' }}>/</span>
+                <span style={{
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  color: '#0f172a',
+                  maxWidth: '320px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {currentTitle}
+                </span>
+              </div>
+            )}
+          </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-            <a href="/contact" className="hover-link" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Contact</a>
-            <a href="#pricing" className="hover-link" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Pricing</a>
+          {/* Right Navigation Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <a href="/contact" className="hover-link" style={{ fontSize: '0.85rem', color: '#475569' }}>Contact</a>
+            <a href="#pricing" className="hover-link" style={{ fontSize: '0.85rem', color: '#475569' }}>Pricing</a>
             
-            {/* Pro / Upgrade button */}
+            {/* Pro badge / Upgrade CTA */}
             {isPro ? (
               <button
                 onClick={handleManageSubscription}
-                className="btn-ghost"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.35rem',
                   padding: '0.35rem 0.75rem',
-                  borderRadius: '9999px',
-                  backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  borderRadius: '6px',
+                  backgroundColor: '#fef3c7',
+                  border: '1px solid #fde68a',
                   color: '#b45309',
                   fontSize: '0.78rem',
                   fontWeight: 700,
@@ -575,8 +598,8 @@ export default function DashboardPage() {
                 }}
                 title="Manage Subscription / Unsubscribe"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>PRO ⭐</span>
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                <span>PRO ACTIVE</span>
               </button>
             ) : (
               <button
@@ -584,26 +607,19 @@ export default function DashboardPage() {
                   setUpgradeNoticePages(undefined);
                   setIsUpgradeModalOpen(true);
                 }}
+                className="btn-primary"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
                   padding: '0.4rem 0.85rem',
-                  borderRadius: '9999px',
-                  background: 'linear-gradient(135deg, #ea580c, #d97706)',
-                  border: 'none',
-                  color: '#fff',
                   fontSize: '0.78rem',
-                  fontWeight: 700,
-                  boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
-                  cursor: 'pointer'
+                  fontWeight: 700
                 }}
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Upgrade</span>
+                <span>Upgrade to Pro</span>
               </button>
             )}
 
+            {/* Auth Buttons */}
             {dbConfigured && (
               <>
                 {user ? (
@@ -613,13 +629,13 @@ export default function DashboardPage() {
                       alignItems: 'center',
                       gap: '0.35rem',
                       padding: '0.35rem 0.75rem',
-                      borderRadius: '9999px',
-                      backgroundColor: 'var(--color-bg-secondary)',
-                      border: '1px solid var(--color-border-default)',
+                      borderRadius: '6px',
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #e2e8f0',
                       fontSize: '0.8rem',
-                      color: 'var(--color-text-secondary)'
+                      color: '#475569'
                     }}>
-                      <User className="w-3.5 h-3.5 text-stone-400" />
+                      <User className="w-3.5 h-3.5 text-slate-400" />
                       <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {user.email}
                       </span>
@@ -631,421 +647,375 @@ export default function DashboardPage() {
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.35rem',
-                          padding: '0.35rem 0.75rem',
+                          padding: '0.35rem 0.65rem',
                           backgroundColor: '#fef2f2',
                           border: '1px solid #fecaca',
-                          borderRadius: '8px',
+                          borderRadius: '6px',
                           color: '#b91c1c',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
                           cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                          transition: 'all 0.15s ease'
+                          whiteSpace: 'nowrap'
                         }}
                         title="Unsubscribe from Pro"
                       >
-                        <span>Unsubscribe</span>
+                        Unsubscribe
                       </button>
                     )}
 
                     <button 
                       onClick={handleSignOut} 
                       className="btn-ghost" 
-                      style={{ padding: '0.35rem', borderRadius: '9999px' }}
+                      style={{ padding: '0.35rem' }}
                       title="Sign Out"
                     >
                       <LogOut className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
-                  <>
-                    <a href="/login" className="hover-link" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Log in</a>
-                    <a href="/signup" className="btn-primary" style={{ padding: '0.45rem 1.2rem', fontSize: '0.8rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <a href="/login" className="hover-link" style={{ fontSize: '0.85rem', color: '#475569', padding: '0.4rem 0.6rem' }}>
+                      Log in
+                    </a>
+                    <a href="/signup" className="btn-secondary" style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem', fontWeight: 600 }}>
                       Sign up
                     </a>
-                  </>
+                  </div>
                 )}
               </>
             )}
 
             {currentMaterials && (
-              <button onClick={handleBackToDashboard} className="btn-primary" style={{ padding: '0.45rem 1.2rem', fontSize: '0.8rem' }}>
-                <Plus className="w-3.5 h-3.5" /> New Guide
+              <button
+                onClick={handleBackToDashboard}
+                className="btn-primary"
+                style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem' }}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Guide</span>
               </button>
             )}
           </div>
         </div>
       </nav>
 
-      {/* Main Page Area */}
-      <main style={{ flex: 1, padding: currentMaterials ? '2rem 1rem' : '0 1rem' }}>
-        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-          
-          {currentMaterials ? (
-            /* Active Workspace View */
-            <div className="animate-slide-up" style={{ padding: '1rem 0' }}>
-              <StudyTabs 
-                materials={currentMaterials} 
+      {/* Main Workspace or Landing Viewport */}
+      <main style={{ flex: 1, padding: currentMaterials ? '1.25rem' : '0 1.5rem' }}>
+        
+        {/* Step-by-Step Processing Overlay */}
+        {isProcessing ? (
+          <div style={{ padding: '4rem 1rem' }}>
+            <ProcessingStepper fileName={processingFileName} isProcessing={isProcessing} />
+          </div>
+        ) : currentMaterials ? (
+          /* Two-Pane Split Study Workspace View with Collapsible Navigation Sidebar */
+          <div
+            style={{
+              maxWidth: '1600px',
+              margin: '0 auto',
+              display: 'flex',
+              gap: '1.25rem',
+              height: 'calc(100vh - 100px)'
+            }}
+          >
+            {/* Collapsible Document Library Sidebar */}
+            <DocumentSidebar
+              items={history}
+              activeId={activeItemId}
+              onSelectItem={loadHistoryItem}
+              onDeleteItem={deleteHistoryItem}
+              onNewGuide={handleBackToDashboard}
+              isPro={isPro}
+              onUpgradeClick={() => setIsUpgradeModalOpen(true)}
+              isOpen={isSidebarOpen}
+              onToggleOpen={() => setIsSidebarOpen(!isSidebarOpen)}
+            />
+
+            {/* Split Workspace: Left Source Viewer + Right Output Switcher */}
+            <div style={{ flex: 1, minWidth: 0, height: '100%' }}>
+              <SplitWorkspace
+                title={currentTitle || 'Study Kit'}
+                materials={currentMaterials}
+                sourceText={currentSourceText}
                 shareId={activeItemId}
                 onShare={async () => {
-                  if (activeItemId) {
-                    const item = history.find(h => h.id === activeItemId);
-                    if (item) {
-                      await handleShareGuide(item, {} as any);
-                    }
-                  } else {
-                    if (history.length > 0) {
-                      await handleShareGuide(history[0], {} as any);
-                    }
+                  const targetItem = history.find((h) => h.id === activeItemId) || history[0];
+                  if (targetItem) {
+                    await handleShareGuide(targetItem);
                   }
                 }}
+                onNewGuide={handleBackToDashboard}
               />
             </div>
-          ) : (
-            /* Clean Lovable Landing View */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6rem', padding: '4rem 0 6rem' }}>
+          </div>
+        ) : (
+          /* Comprehensive Academic Landing View */
+          <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '5rem', padding: '3.5rem 0 6rem' }}>
+            
+            {/* Hero Section */}
+            <section style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.75rem' }}>
               
-              {/* Section 1: Hero */}
-              <div id="generate" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '2rem', maxWidth: '760px', margin: '0 auto' }}>
-                
-                {/* Supabase connection status notice banner */}
-                {!dbConfigured && (
-                  <div className="animate-fade-in" style={{
+              {/* Badge */}
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.35rem 0.85rem',
+                  borderRadius: '999px',
+                  backgroundColor: '#eef2ff',
+                  border: '1px solid #c7d2fe',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  color: '#4f46e5'
+                }}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Next-Gen Study Intelligence for Professional Students & Educators</span>
+              </div>
+
+              {/* Title & Subtitle */}
+              <div style={{ maxWidth: '820px' }}>
+                <h1 style={{ fontSize: '3.25rem', fontWeight: 800, lineHeight: 1.15, letterSpacing: '-0.03em', color: '#0f172a', marginBottom: '1rem' }}>
+                  Transform Complex Text & PDFs into Visual Flowcharts, Flashcards, and Quizzes.
+                </h1>
+                <p style={{ fontSize: '1.2rem', color: '#475569', lineHeight: 1.6, maxWidth: '680px', margin: '0 auto' }}>
+                  Designed for medical, legal, and engineering professionals who need to master dense academic literature with zero cognitive fatigue.
+                </p>
+              </div>
+
+              {/* Frictionless Try-Without-Signup Dropzone */}
+              <div style={{ width: '100%', marginTop: '0.75rem' }}>
+                <HeroDropzone
+                  onSuccess={(t, m, st) => handleSuccess(t, m, st)}
+                  onSelectSample={handleSelectSample}
+                  onStartProcessing={(name) => {
+                    setProcessingFileName(name);
+                    setIsProcessing(true);
+                  }}
+                  onFinishProcessing={() => setIsProcessing(false)}
+                  isPro={isPro}
+                  onRequirePro={(pages) => {
+                    setUpgradeNoticePages(pages);
+                    setIsUpgradeModalOpen(true);
+                  }}
+                />
+              </div>
+            </section>
+
+            {/* Interactive Before & After Showcase Above The Fold */}
+            <section style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
+              <div style={{ textAlign: 'center', maxWidth: '640px' }}>
+                <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>
+                  See the Transformation Live
+                </h2>
+                <p style={{ fontSize: '0.95rem', color: '#64748b' }}>
+                  Compare raw academic prose directly against interactive visual diagrams, active recall cards, and assessment items.
+                </p>
+              </div>
+
+              <BeforeAfterShowcase />
+            </section>
+
+            {/* 3 Core Output Pillars Section */}
+            <section id="features" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '4rem', display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+              <div style={{ textAlign: 'center', maxWidth: '640px', margin: '0 auto' }}>
+                <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>
+                  Three Pedagogical Modalities in One Workspace
+                </h2>
+                <p style={{ fontSize: '0.95rem', color: '#64748b' }}>
+                  Every uploaded document produces three synchronized active-learning artifacts with bidirectional source tracking.
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                {/* Feature 1 */}
+                <div className="card" style={{ padding: '2rem', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '8px',
+                    backgroundColor: '#eef2ff',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.75rem',
-                    padding: '0.5rem 1.25rem',
-                    borderRadius: '9999px',
-                    border: '1px solid var(--color-border-default)',
-                    backgroundColor: 'var(--color-bg-secondary)',
-                    fontSize: '0.8rem',
-                    color: 'var(--color-text-secondary)',
-                    boxShadow: 'var(--shadow-sm)'
+                    justifyContent: 'center',
+                    color: '#4f46e5'
                   }}>
-                    <Database className="w-3.5 h-3.5 text-stone-400" />
-                    <span>Local Sandbox Mode. Add your Supabase credentials in `.env.local` to enable account login & sharing.</span>
+                    <GitFork className="w-5 h-5" />
                   </div>
-                )}
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <h1 style={{ fontSize: '3rem', fontWeight: 800, lineHeight: 1.15, letterSpacing: '-0.03em', color: 'var(--color-text-primary)' }}>
-                    Turn any text or PDF upload into simple, learnable pieces.
-                  </h1>
-                  <p style={{ fontSize: '1.15rem', color: 'var(--color-text-secondary)', lineHeight: 1.6, maxWidth: '640px', margin: '0 auto' }}>
-                    LearnSpine takes long articles and PDFs and gives them back to you as clean flowcharts, flashcards and quizzes — so what you study actually sticks.
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>Interactive Flowcharts</h3>
+                  <p style={{ fontSize: '0.875rem', color: '#475569', lineHeight: 1.6 }}>
+                    Floating canvas controls with pan, zoom, fit-to-screen, and mini-map. Export ready-to-present lecture slides in PNG, SVG, or Mermaid markdown.
                   </p>
                 </div>
 
-                <div style={{ width: '100%', maxWidth: '600px', marginTop: '1rem' }}>
-                  <InputTabs 
-                    onSuccess={(title, materials) => {
-                      const type = title.startsWith('YouTube:') ? 'youtube' : 'text';
-                      handleSuccess(title, materials, type);
-                    }} 
-                    isPro={isPro}
-                    onRequirePro={(pages) => {
-                      setUpgradeNoticePages(pages);
-                      setIsUpgradeModalOpen(true);
+                {/* Feature 2 */}
+                <div className="card" style={{ padding: '2rem', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '8px',
+                    backgroundColor: '#f0fdf4',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#16a34a'
+                  }}>
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>Tactile 3D Flashcards</h3>
+                  <p style={{ fontSize: '0.875rem', color: '#475569', lineHeight: 1.6 }}>
+                    Full keyboard shortcut support (Space, Arrows, 1-3 ratings), live mastery tracking, Anki deck export, and instant source passage lookups.
+                  </p>
+                </div>
+
+                {/* Feature 3 */}
+                <div className="card" style={{ padding: '2rem', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '8px',
+                    backgroundColor: '#fef3c7',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#d97706'
+                  }}>
+                    <CheckSquare className="w-5 h-5" />
+                  </div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>Immediate-Feedback Quizzes</h3>
+                  <p style={{ fontSize: '0.875rem', color: '#475569', lineHeight: 1.6 }}>
+                    Option clicks reveal correct answers instantly. Expandable "Why this is right" cards include one-click buttons to highlight source text evidence.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Pricing Section */}
+            <section id="pricing" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '4rem', display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+              <div style={{ textAlign: 'center', maxWidth: '640px', margin: '0 auto' }}>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '999px',
+                    backgroundColor: '#fef3c7',
+                    color: '#b45309',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    marginBottom: '0.5rem'
+                  }}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Fair & Simple Academic Pricing</span>
+                </div>
+                <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>
+                  Invest in Mastery, Not Busywork
+                </h2>
+                <p style={{ fontSize: '0.95rem', color: '#64748b' }}>
+                  Start free with your first study kits, or unlock full course compendiums and textbooks with Pro.
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', maxWidth: '860px', margin: '0 auto', width: '100%' }}>
+                
+                {/* Free Tier */}
+                <div className="card" style={{ padding: '2.25rem', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>Academic Free</h3>
+                    <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.25rem' }}>For individual papers and article summaries.</p>
+                    <div style={{ margin: '1.5rem 0' }}>
+                      <span style={{ fontSize: '2.5rem', fontWeight: 800, color: '#0f172a' }}>0 SEK</span>
+                      <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}> / forever</span>
+                    </div>
+                    <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: '#475569' }}>
+                      <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Up to 10 pages per document
+                      </li>
+                      <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Flowcharts, flashcards & quizzes
+                      </li>
+                      <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Bidirectional reference highlighting
+                      </li>
+                      <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 3 document processing slots
+                      </li>
+                    </ul>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
-                  />
+                    className="btn-secondary"
+                    style={{ marginTop: '2rem', width: '100%', justifyContent: 'center' }}
+                  >
+                    Get Started Free
+                  </button>
                 </div>
-              </div>
 
-              {/* Section 2: Recent Guides (Conditional) */}
-              {history.length > 0 && (
-                <div id="history" className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border-default)', paddingBottom: '0.75rem' }}>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                      {user ? `${user.email.split('@')[0]}'s Study Guides` : 'Your Recent Study Guides'}
-                    </h2>
+                {/* Pro Tier */}
+                <div
+                  className="card"
+                  style={{
+                    padding: '2.25rem',
+                    backgroundColor: '#ffffff',
+                    border: '2px solid #4f46e5',
+                    position: 'relative',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 8px 30px rgba(79, 70, 229, 0.12)'
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '-12px',
+                      right: '24px',
+                      backgroundColor: '#4f46e5',
+                      color: '#ffffff',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      padding: '0.2rem 0.75rem',
+                      borderRadius: '999px',
+                      textTransform: 'uppercase'
+                    }}
+                  >
+                    Recommended
+                  </div>
+
+                  <div>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>LearnSpine Pro</h3>
+                    <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.25rem' }}>For professional students and academic faculty.</p>
+                    <div style={{ margin: '1.5rem 0' }}>
+                      <span style={{ fontSize: '2.5rem', fontWeight: 800, color: '#0f172a' }}>69 SEK</span>
+                      <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}> / month</span>
+                    </div>
+                    <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: '#475569' }}>
+                      <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Up to 100 pages per PDF</strong> (full books & guides)
+                      </li>
+                      <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>High-res PNG, SVG & PDF flowchart downloads</strong>
+                      </li>
+                      <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>30+ Flashcards & comprehensive quiz sets</strong>
+                      </li>
+                      <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Parallel AI chunking for instant processing</strong>
+                      </li>
+                      <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Cancel anytime with 1-click in account settings
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div style={{ marginTop: '2rem' }}>
                     <button
-                      onClick={() => saveLocalHistoryOnly([])}
-                      className="btn-ghost"
-                      style={{ fontSize: '0.75rem', color: 'var(--color-accent-red)', padding: '0.25rem 0.75rem' }}
-                    >
-                      Clear All
-                    </button>
-                  </div>
-
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
-                    gap: '1rem' 
-                  }}>
-                    {history.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => loadHistoryItem(item)}
-                        style={{
-                          padding: '1rem',
-                          borderRadius: '20px',
-                          border: '1px solid var(--color-border-default)',
-                          backgroundColor: 'var(--color-bg-secondary)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '1rem',
-                          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-                          boxShadow: 'var(--shadow-sm)'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--color-text-primary)';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                          e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--color-border-default)';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                        }}
-                      >
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '8px',
-                          backgroundColor: item.type === 'youtube' ? 'var(--color-accent-red-light)' : 'var(--color-accent-indigo-light)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}>
-                          {item.type === 'youtube' ? (
-                            <Video className="w-4 h-4" style={{ color: 'var(--color-accent-red)' }} />
-                          ) : (
-                            <FileText className="w-4 h-4" style={{ color: 'var(--color-accent-indigo)' }} />
-                          )}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <h4 style={{
-                            fontSize: '0.9rem',
-                            fontWeight: 600,
-                            color: 'var(--color-text-primary)',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            marginBottom: '0.1rem'
-                          }}>
-                            {item.title}
-                          </h4>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{item.date}</span>
-                        </div>
-                        
-                        <button
-                          onClick={(e) => deleteHistoryItem(item.id, e)}
-                          className="btn-ghost"
-                          style={{
-                            padding: '0.35rem',
-                            borderRadius: '9999px',
-                            color: 'var(--color-text-muted)',
-                            transition: 'color 0.15s'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-accent-red)'}
-                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
-                          title="Delete Guide"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Section 3: How it Works */}
-              <div id="how" style={{ display: 'flex', flexDirection: 'column', gap: '3rem', borderTop: '1px solid var(--color-border-default)', paddingTop: '4rem' }}>
-                <div style={{ textAlign: 'center', maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <h2 style={{ fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.02em' }}>How it works</h2>
-                  <p style={{ color: 'var(--color-text-secondary)' }}>Three steps from raw material to something you actually remember.</p>
-                </div>
-
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-                  gap: '2.5rem'
-                }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--color-text-muted)', fontFamily: 'var(--font-family-display)' }}>01</div>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Paste content or PDF</h3>
-                    <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                      Drop in any text, raw notes, or standard lecture PDF you want to learn from.
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--color-text-muted)', fontFamily: 'var(--font-family-display)' }}>02</div>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Analyze key concepts</h3>
-                    <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                      LearnSpine reads through the material, parses the core text structure, and pulls out the ideas that matter.
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--color-text-muted)', fontFamily: 'var(--font-family-display)' }}>03</div>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Active Study Guides</h3>
-                    <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                      Get a flowchart to see the relationships, a flippable flashcard deck to review terms, and a quiz to test your understanding.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 4: What you get */}
-              <div id="features" style={{ display: 'flex', flexDirection: 'column', gap: '3rem', borderTop: '1px solid var(--color-border-default)', paddingTop: '4rem' }}>
-                <div style={{ textAlign: 'center', maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <h2 style={{ fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.02em' }}>What you get</h2>
-                  <p style={{ color: 'var(--color-text-secondary)' }}>Three ways to make the same material stick, generated automatically.</p>
-                </div>
-
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-                  gap: '1.5rem' 
-                }}>
-                  <div className="card" style={{ padding: '2rem', backgroundColor: 'var(--color-bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '8px',
-                      backgroundColor: 'rgba(79, 70, 229, 0.06)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--color-accent-indigo)'
-                    }}>
-                      <GitFork className="w-5 h-5" />
-                    </div>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 600 }}>Concept Flowcharts</h3>
-                    <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
-                      See how ideas connect at a glance. High-contrast zoomable diagram canvas, perfect for process mappings and cause-and-effect logs.
-                    </p>
-                  </div>
-
-                  <div className="card" style={{ padding: '2rem', backgroundColor: 'var(--color-bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '8px',
-                      backgroundColor: 'rgba(13, 148, 136, 0.06)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--color-accent-teal)'
-                    }}>
-                      <BookOpen className="w-5 h-5" />
-                    </div>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 600 }}>Active Recall Flashcards</h3>
-                    <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
-                      Auto-generated active recall decks for key terms and takeaways. Structured with flippable 3D animations and progress markers.
-                    </p>
-                  </div>
-
-                  <div className="card" style={{ padding: '2rem', backgroundColor: 'var(--color-bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '8px',
-                      backgroundColor: 'rgba(219, 39, 119, 0.06)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--color-accent-pink)'
-                    }}>
-                      <CheckSquare className="w-5 h-5" />
-                    </div>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 600 }}>Interactive Quizzes</h3>
-                    <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
-                      Short multiple-choice quizzes checking your comprehension. Instantly marks correct answers and details key concept explanations.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section: Pricing */}
-              <div id="pricing" style={{ display: 'flex', flexDirection: 'column', gap: '3rem', borderTop: '1px solid var(--color-border-default)', paddingTop: '4rem' }}>
-                <div style={{ textAlign: 'center', maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', alignSelf: 'center', padding: '0.25rem 0.75rem', borderRadius: '9999px', backgroundColor: 'rgba(234, 88, 12, 0.1)', color: '#ea580c', fontSize: '0.8rem', fontWeight: 600 }}>
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Simple, transparent pricing
-                  </div>
-                  <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--color-text-primary)' }}>
-                    Invest in your learning outcomes
-                  </h2>
-                  <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.95rem' }}>
-                    Start free and upgrade anytime to process full lecture compendiums and textbooks.
-                  </p>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', maxWidth: '850px', margin: '0 auto', width: '100%' }}>
-                  
-                  {/* Free Tier Card */}
-                  <div className="card" style={{ padding: '2.5rem', backgroundColor: 'var(--color-bg-secondary)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid var(--color-border-default)', borderRadius: '24px' }}>
-                    <div>
-                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Free</h3>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>For short summaries and individual articles.</p>
-                      <div style={{ margin: '1.5rem 0' }}>
-                        <span style={{ fontSize: '2.5rem', fontWeight: 800 }}>0 SEK</span>
-                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}> / forever</span>
-                      </div>
-                      <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Up to 10 pages per document
-                        </li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> Standard flowchart generation
-                        </li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 10 flashcards & quiz questions
-                        </li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 3 documents per month
-                        </li>
-                      </ul>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        const el = document.getElementById('generate');
-                        if (el) el.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="btn-secondary" 
-                      style={{ marginTop: '2rem', width: '100%', justifyContent: 'center' }}
-                    >
-                      Get started free
-                    </button>
-                  </div>
-
-                  {/* Pro Tier Card */}
-                  <div className="card" style={{ padding: '2.5rem', backgroundColor: 'var(--color-bg-secondary)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '2px solid #ea580c', borderRadius: '24px', position: 'relative', boxShadow: '0 8px 30px rgba(234, 88, 12, 0.12)' }}>
-                    <div style={{ position: 'absolute', top: '-12px', right: '24px', backgroundColor: '#ea580c', color: '#fff', fontSize: '0.75rem', fontWeight: 700, padding: '0.25rem 0.75rem', borderRadius: '9999px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Most Popular
-                    </div>
-                    <div>
-                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>LearnSpine Pro</h3>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>For students who want to excel in their courses.</p>
-                      <div style={{ margin: '1.5rem 0' }}>
-                        <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>69 SEK</span>
-                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}> / month</span>
-                      </div>
-                      <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Up to 100 pages per PDF</strong> (Full course books)
-                        </li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Parallel AI Chunking</strong> (Lightning-fast speed)
-                        </li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>Flowcharts in SVG, PNG & PDF</strong>
-                        </li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> <strong>20+ Flashcards & Practice Quizzes</strong>
-                        </li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> 30–50 documents per month
-                        </li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0" /> No commitments — cancel anytime
-                        </li>
-                      </ul>
-                    </div>
-                    <button 
                       onClick={() => {
                         if (isPro) {
                           handleManageSubscription();
@@ -1054,23 +1024,24 @@ export default function DashboardPage() {
                           setIsUpgradeModalOpen(true);
                         }
                       }}
-                      className="btn-primary" 
-                      style={{ marginTop: '2rem', width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, #ea580c, #d97706)', border: 'none', color: '#fff', boxShadow: '0 4px 14px rgba(234, 88, 12, 0.3)' }}
+                      className="btn-primary"
+                      style={{ width: '100%', justifyContent: 'center', padding: '0.8rem' }}
                     >
                       {isPro ? 'Manage / Unsubscribe from Pro' : 'Upgrade to Pro (69 SEK/mo)'}
                     </button>
+
                     {isPro && (
-                      <div style={{ textAlign: 'center', marginTop: '0.75rem' }}>
+                      <div style={{ textAlign: 'center', marginTop: '0.65rem' }}>
                         <button
                           onClick={handleManageSubscription}
                           style={{
                             background: 'none',
                             border: 'none',
                             color: '#dc2626',
-                            fontSize: '0.825rem',
+                            fontSize: '0.8rem',
                             fontWeight: 600,
                             cursor: 'pointer',
-                            textDecoration: 'underline',
+                            textDecoration: 'underline'
                           }}
                         >
                           Cancel subscription / Opt out of Pro
@@ -1078,63 +1049,31 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
-
                 </div>
+
               </div>
+            </section>
 
-              {/* Section 5: Ask a Question / Waitlist Mockup */}
-              <div style={{
-                borderTop: '1px solid var(--color-border-default)',
-                paddingTop: '4rem',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                gap: '3rem',
-                alignItems: 'center'
-              }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Join the waitlist</h2>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                    Be first to try LearnSpine when we open enterprise API access. We'll email your invite when it's ready — no spam.
-                  </p>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    <input type="email" placeholder="you@example.com" className="input-field" style={{ maxWidth: '280px' }} />
-                    <button className="btn-primary" style={{ whiteSpace: 'nowrap' }}>Sign Up</button>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Have a question?</h2>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                    Curious about integrations, pricing tiers, or how LearnSpine handles your material? Ask away — it lands straight in our inbox.
-                  </p>
-                  <a href="/contact" className="btn-secondary" style={{ alignSelf: 'flex-start', marginTop: '0.5rem' }}>
-                    <Mail className="w-4 h-4" />
-                    Contact Support
-                  </a>
-                </div>
-              </div>
-
-            </div>
-          )}
-
-        </div>
+          </div>
+        )}
       </main>
 
-      {/* Footer */}
+      {/* Academic Footer */}
       <footer style={{
-        borderTop: '1px solid var(--color-border-default)',
+        borderTop: '1px solid #e2e8f0',
         padding: '2.5rem 2rem',
         fontSize: '0.85rem',
-        color: 'var(--color-text-secondary)',
-        backgroundColor: 'var(--color-bg-secondary)',
+        color: '#64748b',
+        backgroundColor: '#ffffff',
         marginTop: 'auto'
       }}>
-        <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
           <Logo size={24} />
-          <span>© {new Date().getFullYear()} LearnSpine. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} LearnSpine (learnspine.se). Dedicated to focused learning and low cognitive load.</span>
           <div style={{ display: 'flex', gap: '1.5rem' }}>
-            <a href="#how" className="hover-link">How it works</a>
-            <a href="#features" className="hover-link">What you get</a>
+            <a href="/contact" className="hover-link">Contact</a>
+            <a href="#features" className="hover-link">Features</a>
+            <a href="#pricing" className="hover-link">Pricing</a>
           </div>
         </div>
       </footer>
